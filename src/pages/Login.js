@@ -1,5 +1,6 @@
+// src/pages/Login.js
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -19,8 +20,9 @@ function Login() {
 
       const data = await res.json();
       if (res.ok) {
+        localStorage.setItem('isAuthenticated', 'true');
         alert('Login successful!');
-        navigate('/Dashboard', { state: { username: data.username } });
+        navigate('/dashboard', { state: { username: data.username } });
       } else {
         alert(data.msg || 'Login failed');
       }
@@ -57,6 +59,7 @@ function Login() {
           </div>
           <button type="submit">Login</button>
         </form>
+        <p>Don't have an account? <Link to="/register">Sign Up</Link></p>
       </div>
     </div>
   );
