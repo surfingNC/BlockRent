@@ -20,6 +20,7 @@ A React web application that allows users to apply for loans backed by Bitcoin a
 - 🧭 React Router-based navigation (Login → Dashboard)
 - 🎨 Styled with custom CSS for a clean UI
 - 📁 Organized project structure using `components`, `pages`, `styles`, and `utils`
+- 💰 Real-time BTC pricing via API
 
 ## Tech Stack
 
@@ -36,8 +37,6 @@ A Node.js/Express server with MongoDB will handle login/auth routes.
     -User registration
 
     -JWT-based authentication
-
-    -Real-time BTC pricing via API
 
     -Loan eligibility engine
 

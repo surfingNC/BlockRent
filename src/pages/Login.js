@@ -1,11 +1,30 @@
 // src/pages/Login.js
-import React, { useState } from 'react';
+//import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+
 
 function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [btcPrice, setBtcPrice] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchBitcoinPrice = async () => {
+      try {
+        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+        const data = await res.json();
+        setBtcPrice(data.bitcoin.usd);
+      } catch (err) {
+        console.error('Error fetching BTC price:', err);
+      }
+    };
+
+    fetchBitcoinPrice();
+    const interval = setInterval(fetchBitcoinPrice, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,6 +55,26 @@ function Login() {
     <div className="app-container">
       <div className="login-box">
         <h2>Login</h2>
+
+        {/* ✅ Bitcoin Price Display */}
+        {btcPrice !== null && (
+          <div
+            style={{
+              marginBottom: '16px',
+              padding: '12px',
+              borderRadius: '10px',
+              backgroundColor: '#f3f4f6',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              textAlign: 'center',
+              fontWeight: '500',
+              color: '#1f2937',
+              fontSize: '1rem'
+            }}
+          >
+            🪙 Current Bitcoin Price: <span style={{ fontWeight: 'bold' }}>${btcPrice.toLocaleString()}</span>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
           <div className="input-group">
             <label htmlFor="username">Username</label>
