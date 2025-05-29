@@ -34,4 +34,29 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// Login route
+router.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    // Check if user exists
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(400).json({ msg: 'Invalid username or password' });
+    }
+
+    // Check password
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ msg: 'Invalid username or password' });
+    }
+
+    // Success
+    res.status(200).json({ msg: 'Login successful', username: user.username });
+  } catch (err) {
+    console.error('❌ Login error:', err);
+    res.status(500).json({ msg: 'Server error during login' });
+  }
+});
+
 module.exports = router;
