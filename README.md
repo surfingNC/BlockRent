@@ -15,7 +15,7 @@ A React web application that allows users to apply for loans backed by Bitcoin a
 
 ## Features
 
-- 🔐 User login with client-side validation
+- 🔐 User registration and login with client-side validation and password hashing using bcrypt.
 - 💰 Loan application form with BTC collateral input
 - 🧭 React Router-based navigation (Login → Dashboard)
 - 🎨 Styled with custom CSS for a clean UI
@@ -28,9 +28,9 @@ A React web application that allows users to apply for loans backed by Bitcoin a
 - **Styling**: Custom CSS
 - **Backend (Planned/Partial)**: Node.js with Express and MongoDB for user authentication
 
-Backend (Optional / To be implemented)
+## Backend
 
-A Node.js/Express server with MongoDB will handle login/auth routes.
+Handles authentication and login routes via a Node.js/Express server connected to MongoDB.
 
 ## Planned Features
 
