@@ -1,13 +1,13 @@
 // src/pages/Login.js
-//import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import React, { useState, useEffect } from 'react';
-
+import { useNavigate, Link } from 'react-router-dom';
 
 function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [btcPrice, setBtcPrice] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -28,6 +28,8 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setErrorMsg(null);
     const trimmedUsername = username.trim();
 
     try {
@@ -38,17 +40,20 @@ function Login() {
       });
 
       const data = await res.json();
+
       if (res.ok) {
+        localStorage.setItem('token', data.token);
         localStorage.setItem('isAuthenticated', 'true');
-        alert('Login successful!');
         navigate('/dashboard', { state: { username: data.username } });
       } else {
-        alert(data.msg || 'Login failed');
+        setErrorMsg(data.msg || 'Login failed');
+        setPassword('');
       }
     } catch (err) {
       console.error(err);
-      alert('Error logging in');
+      setErrorMsg('Error logging in');
     }
+    setLoading(false);
   };
 
   return (
@@ -56,7 +61,6 @@ function Login() {
       <div className="login-box">
         <h2>Login</h2>
 
-        {/* ✅ Bitcoin Price Display */}
         {btcPrice !== null && (
           <div
             style={{
@@ -68,14 +72,16 @@ function Login() {
               textAlign: 'center',
               fontWeight: '500',
               color: '#1f2937',
-              fontSize: '1rem'
+              fontSize: '1rem',
             }}
           >
-            🪙 Current Bitcoin Price: <span style={{ fontWeight: 'bold' }}>${btcPrice.toLocaleString()}</span>
+            🪙 Current Bitcoin Price:{' '}
+            <span style={{ fontWeight: 'bold' }}>${btcPrice.toLocaleString()}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
+          {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
           <div className="input-group">
             <label htmlFor="username">Username</label>
             <input
@@ -96,9 +102,14 @@ function Login() {
               required
             />
           </div>
-          <button type="submit">Login</button>
+          <button type="submit" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login'}
+          </button>
         </form>
-        <p>Don't have an account? <Link to="/register">Sign Up</Link></p>
+
+        <p>
+          Don't have an account? <Link to="/register">Sign Up</Link>
+        </p>
       </div>
     </div>
   );

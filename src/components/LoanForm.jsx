@@ -11,11 +11,11 @@ function LoanForm() {
   };
 
   return (
-    <div className="loan-box">
+    <div className="lease-box">
       <h2>Bitcoin-Backed Loan</h2>
       <form onSubmit={handleLoanSubmit}>
         <div className="input-group">
-          <label>Loan Amount (USD)</label>
+          <label>Lease Amount (USD)</label>
           <input
             type="number"
             value={amount}

@@ -22,7 +22,7 @@ code {
   min-height: 100vh;
 }
 
-.login-box, .loan-box {
+.login-box, .lease-box {
   background: white;
   padding: 2rem;
   border-radius: 10px;
