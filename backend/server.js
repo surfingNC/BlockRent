@@ -3,10 +3,11 @@ require('dotenv').config({ path: __dirname + '/.env' });
 
 const express = require('express');
 const mongoose = require('mongoose');
-
 const cors = require('cors');
 
+//Route imports
 const authRoutes = require('./routes/auth.js');
+const protectedRoutes = require('./routes/protected.js');
 
 
 
@@ -28,6 +29,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/api/auth', authRoutes);
+app.use('/api/protected', protectedRoutes);
 
 // Attempt MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {

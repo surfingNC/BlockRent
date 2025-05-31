@@ -1,21 +1,20 @@
-// middleware/authMiddleware.js
+// middleware/auth.js
 const jwt = require('jsonwebtoken');
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
 
-function verifyToken(req, res, next) {
-  const token = req.headers.authorization?.split(' ')[1]; // Expecting Bearer TOKEN
+const verifyToken = (req, res, next) => {
+  const authHeader = req.header('Authorization');
+  if (!authHeader) return res.status(401).json({ msg: 'No token, access denied' });
 
-  if (!token) {
-    return res.status(401).json({ msg: 'No token provided' });
-  }
+  const token = authHeader.split(' ')[1]; // Extract token after "Bearer"
+  if (!token) return res.status(401).json({ msg: 'Token malformed' });
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // Attach user data to request
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
     next();
   } catch (err) {
-    return res.status(401).json({ msg: 'Invalid or expired token' });
+    res.status(401).json({ msg: 'Token is not valid' });
   }
-}
+};
 
 module.exports = verifyToken;

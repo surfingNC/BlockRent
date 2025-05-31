@@ -42,8 +42,9 @@ function Login() {
       const data = await res.json();
 
       if (res.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('isAuthenticated', 'true');
+        sessionStorage.setItem('token', data.token);
+        sessionStorage.setItem('username', data.username);
+        sessionStorage.setItem('isAuthenticated', 'true');
         navigate('/dashboard', { state: { username: data.username } });
       } else {
         setErrorMsg(data.msg || 'Login failed');
