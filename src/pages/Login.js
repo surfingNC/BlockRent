@@ -10,6 +10,15 @@ function Login() {
   const [errorMsg, setErrorMsg] = useState(null);
   const navigate = useNavigate();
 
+  // Redirect if user is already logged in
+  useEffect(() => {
+    const token = sessionStorage.getItem('token');
+    if (token) {
+      navigate('/dashboard');
+    }
+  }, [navigate]);
+
+  // Fetch Bitcoin price
   useEffect(() => {
     const fetchBitcoinPrice = async () => {
       try {
