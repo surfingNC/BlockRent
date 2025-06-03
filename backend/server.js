@@ -1,37 +1,38 @@
-require('dotenv').config({ path: __dirname + '/.env' });
-
+require('dotenv').config({ path: __dirname + '/.env' }); // Load .env first
 
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 
-//Route imports
 const authRoutes = require('./routes/auth.js');
 const protectedRoutes = require('./routes/protected.js');
+const verifyRoute = require('./routes/verify.js');      // Email code verification route
+const resetRoute = require('./routes/reset.js');        // Dev DB reset route
 
-
-
-// Debug output to verify the environment variable is loaded
+// Check required env variables
 if (!process.env.MONGO_URI) {
   console.error('❌ MONGO_URI not found in environment variables');
   process.exit(1);
 }
 
+// Optional: Mask MongoDB credentials in logs
+console.log('🔧 Attempting to connect to MongoDB at:');
+console.log('Host:', process.env.MONGO_URI.split('@')[1]?.split('/')[0]);
 
-console.log("🔧 Attempting to connect to MongoDB at:");
-console.log("Host:", process.env.MONGO_URI.split('@')[1]?.split('/')[0]); // Hides credentials
-
-// Enable strict query mode
 mongoose.set('strictQuery', true);
-
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(express.json());
+
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/protected', protectedRoutes);
+app.use('/api/auth/verify-email', verifyRoute); // ⬅️ Verifies code and creates user
+app.use('/api/auth/reset', resetRoute);         // ⬅️ Dev DB reset route
 
-// Attempt MongoDB connection
+// MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,

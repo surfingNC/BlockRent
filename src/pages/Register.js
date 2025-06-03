@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 function Register() {
+  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,13 +22,19 @@ function Register() {
       const res = await fetch('http://localhost:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: trimmedUsername, password })
+        body: JSON.stringify({ email, username: trimmedUsername, password })
       });
 
       const data = await res.json();
       if (res.ok) {
-        alert('Registration successful! Please log in.');
-        navigate('/login');
+        alert('Verification code sent to your email.');
+        navigate('/verify-email', {
+          state: {
+            email,
+            username: trimmedUsername,
+            password
+          }
+        });
       } else {
         alert(data.msg || 'Registration failed');
       }
@@ -43,11 +50,36 @@ function Register() {
     setPasswordsMatch(password === value);
   };
 
+  const handleResetDatabase = async () => {
+    if (window.confirm('Are you sure you want to reset the database?')) {
+      try {
+        const res = await fetch('http://localhost:5000/api/auth/reset', {
+          method: 'POST'
+        });
+        const data = await res.json();
+        alert(data.msg || 'Database reset');
+      } catch (err) {
+        console.error(err);
+        alert('Error resetting database');
+      }
+    }
+  };
+
   return (
     <div className="app-container">
       <div className="login-box">
         <h2>Register</h2>
         <form onSubmit={handleRegister}>
+          <div className="input-group">
+            <label htmlFor="email">Email</label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
           <div className="input-group">
             <label htmlFor="username">Username</label>
             <input
@@ -89,6 +121,22 @@ function Register() {
           </div>
           <button type="submit" disabled={!passwordsMatch}>Sign Up</button>
         </form>
+
+        <button
+          type="button"
+          style={{
+            marginTop: '1rem',
+            backgroundColor: '#cc0000',
+            color: '#fff',
+            padding: '0.5rem 1rem',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+          onClick={handleResetDatabase}
+        >
+          🔄 Reset Dev DB
+        </button>
       </div>
     </div>
   );
