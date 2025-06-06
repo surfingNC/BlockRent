@@ -42,15 +42,36 @@ function Dashboard() {
       });
   }, []);
 
+  const handleLogout = () => {
+    sessionStorage.clear();
+    navigate('/login');
+  };
+
   if (loading) return <div>Loading...</div>;
 
   if (!authorized) return <Navigate to="/login" replace />;
 
   return (
     <div className="app-container">
-      <h1>Welcome, {username || 'user'}!</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h1>Welcome, {username || 'user'}!</h1>
+      </div>
       <p>Use the form below to apply for a Bitcoin-backed lease.</p>
       <LoanForm />
+      <button 
+        onClick={handleLogout} 
+          style={{ 
+          padding: '8px 16px', 
+          backgroundColor: 'black', 
+          color: 'white', 
+          border: 'none', 
+          borderRadius: '4px', 
+          cursor: 'pointer' 
+          }}
+      >
+      Logout
+      </button>
+
     </div>
   );
 }
