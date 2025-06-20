@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, Navigate, useNavigate } from 'react-router-dom';
 import LoanForm from '../components/LoanForm';
 
+
 function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();

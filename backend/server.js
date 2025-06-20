@@ -34,8 +34,8 @@ app.use('/api/auth/reset', resetRoute);         // ⬅️ Dev DB reset route
 
 // MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000,
+  family: 4 // ✅ Force IPv4 to avoid connection issues on some networks
 })
 .then(() => {
   console.log('✅ MongoDB connected successfully');
@@ -45,4 +45,24 @@ mongoose.connect(process.env.MONGO_URI, {
 .catch(err => {
   console.error('❌ MongoDB connection error:');
   console.error(err);
+});
+
+// Additional debug listeners
+mongoose.connection.on('connected', () => {
+  console.log('✅ Mongoose connection established');
+});
+
+mongoose.connection.on('error', err => {
+  console.error('❌ Mongoose runtime error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('⚠️ Mongoose disconnected from MongoDB');
+});
+
+// Graceful shutdown on Ctrl+C / termination
+process.on('SIGINT', async () => {
+  await mongoose.connection.close();
+  console.log('🛑 Mongoose connection closed on app termination');
+  process.exit(0);
 });

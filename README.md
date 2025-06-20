@@ -73,7 +73,7 @@ The server verifies the token to authenticate the user.
 JWT tokens are stateless, meaning the server doesn’t need to store session data — it just verifies the token on each request.
 
 📦 Main Technologies
-express – Web server and routing
+express – Web server and routing.
 
 mongoose – Connects to MongoDB and defines data schemas
 
