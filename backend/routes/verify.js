@@ -1,8 +1,9 @@
-const express = require('express');
-const bcrypt = require('bcrypt');
+import express from 'express';
+import bcrypt from 'bcrypt';
+import User from '../models/User.js';
+import Verification from '../models/Verification.js';
+
 const router = express.Router();
-const User = require('../models/User');
-const Verification = require('../models/Verification');
 
 // === ✅ EMAIL VERIFICATION ROUTE ===
 router.post('/verify', async (req, res) => {
@@ -15,10 +16,7 @@ router.post('/verify', async (req, res) => {
   try {
     const verificationRecord = await Verification.findOne({ email });
 
-    if (
-      !verificationRecord ||
-      verificationRecord.expiresAt < Date.now()
-    ) {
+    if (!verificationRecord || verificationRecord.expiresAt < Date.now()) {
       return res.status(400).json({ msg: 'Invalid or expired verification code' });
     }
 
@@ -45,4 +43,4 @@ router.post('/verify', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

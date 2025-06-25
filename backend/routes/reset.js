@@ -1,8 +1,8 @@
-const express = require('express');
-const router = express.Router();
+import express from 'express';
+import User from '../models/User.js';
+import Verification from '../models/Verification.js';
 
-const User = require('../models/User');
-const Verification = require('../models/Verification');
+const router = express.Router();
 
 // Dev route to reset the database (ONLY for development/testing)
 router.post('/reset', async (req, res) => {
@@ -16,4 +16,4 @@ router.post('/reset', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

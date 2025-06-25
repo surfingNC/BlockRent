@@ -1,7 +1,7 @@
-// routes/protectedRoute.js
-const express = require('express');
+import express from 'express';
+import verifyToken from '../middleware/authMiddleware.js';
+
 const router = express.Router();
-const verifyToken = require('../middleware/authMiddleware');
 
 router.get('/dashboard', verifyToken, (req, res) => {
   res.json({
@@ -9,4 +9,4 @@ router.get('/dashboard', verifyToken, (req, res) => {
   });
 });
 
-module.exports = router;
+export default router;

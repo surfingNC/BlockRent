@@ -1,10 +1,12 @@
-const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+// backend/routes/auth.js
+import express from 'express';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
+import Verification from '../models/Verification.js';
+import sendVerificationEmail from '../utils/sendEmail.js';
+
 const router = express.Router();
-const User = require('../models/User');
-const Verification = require('../models/Verification');
-const sendVerificationEmail = require('../utils/sendEmail');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
 
@@ -39,6 +41,10 @@ router.post('/register', async (req, res) => {
       { code: hashedCode, expiresAt },
       { upsert: true, new: true }
     );
+
+    // Save user but with isVerified: false
+    const newUser = new User({ username, email, password: hashedPassword, isVerified: false });
+    await newUser.save();
 
     // Send email with raw code
     await sendVerificationEmail(email, verificationCode);
@@ -91,4 +97,4 @@ router.post('/reset', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

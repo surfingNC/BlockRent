@@ -1,5 +1,5 @@
-//backend/models/Verification.js
-const mongoose = require('mongoose');
+// backend/models/Verification.js
+import mongoose from 'mongoose';
 
 const verificationSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
@@ -7,4 +7,4 @@ const verificationSchema = new mongoose.Schema({
   expiresAt: { type: Date, required: true }
 });
 
-module.exports = mongoose.model('Verification', verificationSchema);
+export default mongoose.model('Verification', verificationSchema);
