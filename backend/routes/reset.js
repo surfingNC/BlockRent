@@ -4,11 +4,12 @@ import Verification from '../models/Verification.js';
 
 const router = express.Router();
 
-// Dev route to reset the database (ONLY for development/testing)
+// 🚨 Dev-only route to reset the database
 router.post('/reset', async (req, res) => {
   try {
     await User.deleteMany({});
     await Verification.deleteMany({});
+    console.log('🧹 All users and verification codes deleted.');
     res.status(200).json({ message: '✅ Database reset successfully' });
   } catch (err) {
     console.error('❌ Error resetting database:', err);
