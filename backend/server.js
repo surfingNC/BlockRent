@@ -18,6 +18,8 @@ import protectedRoutes from './routes/protected.js';
 import verifyRoute from './routes/verify.js';
 import resetRoute from './routes/reset.js';
 import walletRoutes from './routes/wallet.js';
+import leaseRoutes from './routes/lease.js';
+
 
 const app = express();
 
@@ -39,6 +41,7 @@ app.use('/api/protected', protectedRoutes);
 app.use('/api/auth/verify-email', verifyRoute);
 app.use('/api/auth/reset', resetRoute);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/lease', leaseRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI, {
