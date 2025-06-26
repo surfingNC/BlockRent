@@ -11,10 +11,11 @@
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
     "@unisat/wallet-utils": "^1.0.0",
+    "axios": "^1.10.0",
     "bcrypt": "^5.1.0",
     "bcryptjs": "^3.0.2",
     "bech32": "^2.0.0",
-
+    "bip-schnorr": "^0.6.7",
     "bitcoinjs-lib": "^6.1.7",
     "bitcoinjs-message": "^2.2.0",
     "buffer": "^6.0.3",
@@ -37,15 +38,15 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-  "predeploy": "npm run build",
-  "deploy": "gh-pages -d build",
-  "start": "react-scripts start",
-  "dev": "concurrently \"npm run start-server\" \"npm start\"",
-  "start-server": "node backend/server.js",
-  "build": "react-scripts build",
-  "test": "react-scripts test",
-  "eject": "react-scripts eject"
-},
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
+    "start": "react-scripts start",
+    "dev": "concurrently \"npm run start-server\" \"npm start\"",
+    "start-server": "node backend/server.js",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
   "eslintConfig": {
     "extends": [
       "react-app",

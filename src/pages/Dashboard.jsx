@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, Navigate, useNavigate } from 'react-router-dom';
 import LoanForm from '../components/LoanForm';
 import WalletInfo from '../components/WalletInfo';
-import { normalizeSignature } from '../utils/normalizeSignature.js'; 
+import { normalizeSignature } from '../utils/normalizeSignature.js';
+import { calculateCollateral } from '../utils/calculateCollateral.js'; 
 // adjust the path to wherever your function is located
 
 
@@ -18,6 +19,13 @@ function Dashboard() {
   const [walletAddress, setWalletAddress] = useState(
     sessionStorage.getItem('walletAddress') || ''
   );
+
+  const [creditScore, setCreditScore] = useState('');
+  const [monthlyRentUSD, setMonthlyRentUSD] = useState('');
+  const [btcUsdRate, setBtcUsdRate] = useState('');
+  const [btcEstimate, setBtcEstimate] = useState(null);
+
+
 
   const API_URL = 'http://localhost:5000';
 
@@ -134,6 +142,14 @@ const handleUnisatConnect = async () => {
   }
 };
 
+const handleEstimate = () => {
+const result = calculateCollateral(
+  parseInt(creditScore),
+  parseFloat(monthlyRentUSD),
+  parseFloat(btcUsdRate)
+  );
+setBtcEstimate(result);
+};
 
   const handleLogout = () => {
     sessionStorage.clear();
@@ -167,6 +183,35 @@ const handleUnisatConnect = async () => {
           </button>
         ) : (
           <WalletInfo address={walletAddress} />
+        )}
+      </div>
+      
+      <div style={{ marginTop: '40px' }}>
+        <h2>Bitcoin Collateral Estimator</h2>
+        <input
+          type="number"
+          placeholder="Credit Score"
+          value={creditScore}
+          onChange={(e) => setCreditScore(e.target.value)}
+        />
+        <input
+          type="number"
+          placeholder="Monthly Rent (USD)"
+          value={monthlyRentUSD}
+          onChange={(e) => setMonthlyRentUSD(e.target.value)}
+        />
+        <input
+          type="number"
+          placeholder="BTC/USD Rate"
+          value={btcUsdRate}
+          onChange={(e) => setBtcUsdRate(e.target.value)}
+        />
+        <button onClick={handleEstimate}>Estimate BTC Required</button>
+        {btcEstimate && (
+          <p>
+            Required Collateral: {btcEstimate.monthsRequired} months ≈{' '}
+            {btcEstimate.btcRequired} BTC
+          </p>
         )}
       </div>
 
