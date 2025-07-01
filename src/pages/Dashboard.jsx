@@ -210,11 +210,12 @@ function Dashboard() {
           onChange={(e) => setMonthlyRentUSD(e.target.value)}
         />
         <input
-          type="number"
+          type="text"
           placeholder="BTC/USD Rate"
-          value={btcUsdRate}
+          value={btcUsdRate ? `$${Number(btcUsdRate).toLocaleString()}` : ''}
           disabled
         />
+
         <button onClick={handleEstimate}>Estimate BTC Required</button>
         {btcEstimate && (
           <p>
