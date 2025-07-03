@@ -1,19 +1,19 @@
-// backend\routes\lease.js
 import express from 'express';
 import verifyToken from '../middleware/authMiddleware.js';
 import Lease from '../models/Lease.js';
-import { fetchCurrentBTCPrice } from '../utils/fetchBTCPrice.js';
+import { getCachedBTCPrice } from '../utils/btcCache.js'; // ✅ Use cached fetch
 
 const router = express.Router();
 
 /**
  * @route   GET /api/lease/btc-price
- * @desc    Fetch current BTC price from CoinGecko
+ * @desc    Get cached BTC price (to avoid API rate-limiting)
  * @access  Public
  */
 router.get('/btc-price', async (req, res) => {
   try {
-    const price = await fetchCurrentBTCPrice();
+    const price = await getCachedBTCPrice();
+    if (!price) throw new Error('Price unavailable');
     res.json({ price });
   } catch (err) {
     console.error('❌ BTC price fetch error:', err);
@@ -30,8 +30,7 @@ router.post('/new', verifyToken, async (req, res) => {
   try {
     const { tenantName, creditScore, monthlyRentUSD, leaseStart, leaseEnd } = req.body;
 
-    // Fetch current BTC/USD rate
-    const btcUsdRate = await fetchCurrentBTCPrice();
+    const btcUsdRate = await getCachedBTCPrice(); // ✅ Use cache
     if (!btcUsdRate) return res.status(500).json({ error: 'Failed to fetch BTC price' });
 
     // Determine months of collateral based on credit score

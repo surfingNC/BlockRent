@@ -10,7 +10,7 @@ function Login() {
   const [errorMsg, setErrorMsg] = useState(null);
   const navigate = useNavigate();
 
-  // Redirect if user is already logged in
+  // Redirect if already logged in
   useEffect(() => {
     const token = sessionStorage.getItem('token');
     if (token) {
@@ -18,7 +18,7 @@ function Login() {
     }
   }, [navigate]);
 
-  // Fetch Bitcoin price
+  // Fetch live BTC price
   useEffect(() => {
     const fetchBitcoinPrice = async () => {
       try {
@@ -39,13 +39,12 @@ function Login() {
     e.preventDefault();
     setLoading(true);
     setErrorMsg(null);
-    const trimmedUsername = username.trim();
 
     try {
       const res = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: trimmedUsername, password })
+        body: JSON.stringify({ username: username.trim(), password }),
       });
 
       const data = await res.json();
@@ -63,14 +62,30 @@ function Login() {
       console.error(err);
       setErrorMsg('Error logging in');
     }
+
     setLoading(false);
   };
 
-  return (
+return (
+  <div
+    style={{
+      backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed',
+      minHeight: '100vh',
+      width: '100%',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+    }}
+  >
     <div className="app-container">
       <div className="login-box">
-        <h2>Login</h2>
+        <h2 style={{ textAlign: 'center' }}>Login</h2>
 
+        {/* Live BTC price display */}
         {btcPrice !== null && (
           <div
             style={{
@@ -90,6 +105,7 @@ function Login() {
           </div>
         )}
 
+        {/* Login form */}
         <form onSubmit={handleSubmit}>
           {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
           <div className="input-group">
@@ -102,6 +118,7 @@ function Login() {
               required
             />
           </div>
+
           <div className="input-group">
             <label htmlFor="password">Password</label>
             <input
@@ -112,6 +129,7 @@ function Login() {
               required
             />
           </div>
+
           <button type="submit" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}
           </button>
@@ -122,7 +140,9 @@ function Login() {
         </p>
       </div>
     </div>
-  );
+  </div>
+);
+
 }
 
 export default Login;
