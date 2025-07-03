@@ -1,3 +1,4 @@
+// src\components\LeaseForm.jsx
 import React, { useEffect, useState } from 'react';
 import { calculateCollateral } from '../utils/calculateCollateral';
 

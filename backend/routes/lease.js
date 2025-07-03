@@ -1,3 +1,4 @@
+// backend\routes\lease.js
 import express from 'express';
 import verifyToken from '../middleware/authMiddleware.js';
 import Lease from '../models/Lease.js';

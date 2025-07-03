@@ -1,3 +1,4 @@
+// src\utils\calculateCollateral.js
 export function calculateCollateral(creditScore, monthlyRentUSD, btcUsdRate) {
   let monthsRequired;
 

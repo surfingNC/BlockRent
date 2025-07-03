@@ -1,3 +1,4 @@
+// backend\utils\verifySignature.js
 import * as tinysecp from 'tiny-secp256k1';
 import schnorr from 'bip-schnorr';
 import crypto from 'crypto';

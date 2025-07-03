@@ -1,3 +1,4 @@
+// src\utils\normalizeSignature.js
 export function normalizeSignature(signature, isTaproot) {
   if (!signature || typeof signature !== 'string') {
     throw new Error('Invalid signature input');

@@ -1,3 +1,4 @@
+// src\pages\Dashboard.jsx
 import React, { useEffect, useState } from 'react';
 import { useLocation, Navigate, useNavigate } from 'react-router-dom';
 import LoanForm from '../components/LoanForm';
@@ -70,86 +71,94 @@ function Dashboard() {
   }, []);
 
   // ✅ UniSat Wallet Connect
-  const handleUnisatConnect = async () => {
-    if (!window.unisat) {
-      alert('UniSat Wallet not installed. Get it at https://unisat.io');
+const handleUnisatConnect = async () => {
+  if (!window.unisat) {
+    alert('UniSat Wallet not installed. Get it at https://unisat.io');
+    return;
+  }
+
+  try {
+    const token = sessionStorage.getItem('token');
+    if (!token) {
+      alert('You must be logged in to connect your wallet.');
       return;
     }
 
-    try {
-      const token = sessionStorage.getItem('token');
-      if (!token) {
-        alert('You must be logged in to connect your wallet.');
-        return;
-      }
-
-      const accounts = await window.unisat.requestAccounts();
-      if (!accounts || accounts.length === 0) {
-        alert('No accounts found in UniSat Wallet.');
-        return;
-      }
-      const address = accounts[0];
-      const pubkey = await window.unisat.getPublicKey();
-      if (!pubkey) {
-        alert('Failed to get public key from UniSat Wallet.');
-        return;
-      }
-
-      const addrLower = address.toLowerCase();
-      const isTaproot = addrLower.startsWith('bc1p');
-
-      const challengeRes = await fetch(`${API_URL}/api/wallet/challenge`, {
-        method: 'GET',
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!challengeRes.ok) throw new Error('Failed to get challenge from server');
-      const { challenge } = await challengeRes.json();
-
-      let signature;
-      if (isTaproot) {
-        signature = await window.unisat.signSchnorr(challenge);
-        signature = signature.toLowerCase();
-      } else {
-        signature = await window.unisat.signMessage(challenge, 'ecdsa');
-      }
-
-      if (!signature) {
-        alert('Signature was empty or invalid.');
-        return;
-      }
-
-      const normalizedSignature = normalizeSignature(signature, isTaproot);
-
-      const verifyRes = await fetch(`${API_URL}/api/wallet/connect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          address,
-          pubkey,
-          challenge,
-          signature: normalizedSignature,
-        }),
-      });
-
-      if (!verifyRes.ok) {
-        const err = await verifyRes.json();
-        throw new Error(err.error || 'Wallet verification failed');
-      }
-
-      sessionStorage.setItem('walletAddress', address);
-      setWalletAddress(address);
-      alert('✅ Wallet connected successfully!');
-    } catch (err) {
-      console.error('❌ Wallet connect error:', err);
-      alert(`Failed to connect wallet: ${err.message}`);
+    const accounts = await window.unisat.requestAccounts();
+    if (!accounts || accounts.length === 0) {
+      alert('No accounts found in UniSat Wallet.');
+      return;
     }
-  };
+
+    const address = accounts[0];
+    const pubkey = await window.unisat.getPublicKey();
+    if (!pubkey) {
+      alert('Failed to get public key from UniSat Wallet.');
+      return;
+    }
+
+    const addrLower = address.toLowerCase();
+    const isTaproot = addrLower.startsWith('bc1p');
+
+    // ✅ Get current challenge from backend
+    const challengeRes = await fetch(`${API_URL}/api/wallet/challenge`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (!challengeRes.ok) throw new Error('Failed to get challenge from server');
+    const { challenge } = await challengeRes.json();
+
+    // ✅ Sign challenge with UniSat Wallet
+    let signature;
+    if (isTaproot) {
+      signature = await window.unisat.signSchnorr(challenge);
+      signature = signature.toLowerCase();
+    } else {
+      signature = await window.unisat.signMessage(challenge, 'ecdsa');
+    }
+
+    if (!signature) {
+      alert('Signature was empty or invalid.');
+      return;
+    }
+
+    const normalizedSignature = normalizeSignature(signature, isTaproot);
+
+    // ✅ Get BTC balance and convert from sats
+    const balanceInSats = await window.unisat.getBalance();
+    const btc = parseFloat(balanceInSats.total) / 100000000;
+
+    // ✅ Send verification to backend
+    const verifyRes = await fetch(`${API_URL}/api/wallet/connect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        address,
+        pubkey,
+        challenge,
+        signature: normalizedSignature,
+        balance: btc,
+      }),
+    });
+
+    if (!verifyRes.ok) {
+      const err = await verifyRes.json();
+      throw new Error(err.error || 'Wallet verification failed');
+    }
+
+    sessionStorage.setItem('walletAddress', address);
+    setWalletAddress(address);
+    alert('✅ Wallet connected successfully!');
+  } catch (err) {
+    console.error('❌ Wallet connect error:', err);
+    alert(`Failed to connect wallet: ${err.message}`);
+  }
+};
+
 
   const handleEstimate = () => {
     const result = calculateCollateral(

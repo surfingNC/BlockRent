@@ -1,3 +1,4 @@
+// src\components\WalletInfo.js
 import React, { useEffect, useState } from 'react';
 
 function WalletInfo({ address }) {

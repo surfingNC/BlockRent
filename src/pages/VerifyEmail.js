@@ -1,3 +1,4 @@
+// src\pages\VerifyEmail.js
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 

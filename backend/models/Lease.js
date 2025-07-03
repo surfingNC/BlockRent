@@ -1,3 +1,4 @@
+// backend\models\Lease.js
 import mongoose from 'mongoose';
 
 const leaseSchema = new mongoose.Schema({

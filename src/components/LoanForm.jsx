@@ -1,3 +1,4 @@
+// src\components\LoanForm.jsx
 import React, { useState } from 'react';
 
 function LoanForm() {
