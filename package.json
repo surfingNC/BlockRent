@@ -66,7 +66,7 @@
     ]
   },
   "devDependencies": {
-    "concurrently": "^9.1.2",
+    "concurrently": "^9.2.0",
     "gh-pages": "^6.3.0"
   },
   "description": "BlockRent lets you qualify for apartments or mortgages using Bitcoin instead of traditional credit. Secure your future, your way.",

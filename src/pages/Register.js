@@ -66,10 +66,24 @@ function Register() {
     }
   };
 
-  return (
+return (
+  <div
+    style={{
+      backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed',
+      minHeight: '100vh',
+      width: '100%',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+    }}
+  >
     <div className="app-container">
       <div className="login-box">
-        <h2>Register</h2>
+        <h2 style={{ textAlign: 'center' }}>Register</h2>
         <form onSubmit={handleRegister}>
           <div className="input-group">
             <label htmlFor="email">Email</label>
@@ -111,7 +125,7 @@ function Register() {
               required
               style={{
                 borderColor: !passwordsMatch ? 'red' : '',
-                borderWidth: !passwordsMatch ? '2px' : ''
+                borderWidth: !passwordsMatch ? '2px' : '',
               }}
             />
             {!passwordsMatch && (
@@ -132,7 +146,7 @@ function Register() {
             padding: '0.5rem 1rem',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer'
+            cursor: 'pointer',
           }}
           onClick={handleResetDatabase}
         >
@@ -140,7 +154,9 @@ function Register() {
         </button>
       </div>
     </div>
-  );
+  </div>
+);
+
 }
 
 export default Register;
