@@ -5,6 +5,8 @@
   "homepage": "https://gitname.github.io/react-gh-pages",
   "private": true,
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.846.0",
+    "@aws-sdk/s3-request-presigner": "^3.846.0",
     "@noble/hashes": "^1.8.0",
     "@noble/secp256k1": "^2.3.0",
     "@testing-library/jest-dom": "^5.16.5",
@@ -20,7 +22,7 @@
     "bitcoinjs-message": "^2.2.0",
     "buffer": "^6.0.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
+    "dotenv": "^16.6.1",
     "ecdsa-sig-formatter": "^1.0.11",
     "elliptic": "^6.6.1",
     "express": "^5.1.0",
