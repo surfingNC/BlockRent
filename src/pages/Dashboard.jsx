@@ -150,7 +150,6 @@ function Dashboard() {
         throw new Error(err.error || 'Wallet verification failed');
       }
 
-      sessionStorage.setItem('walletAddress', address);
       setWalletAddress(address);
       alert('✅ Wallet connected successfully!');
     } catch (err) {
@@ -172,6 +171,15 @@ function Dashboard() {
     sessionStorage.clear();
     navigate('/login');
   };
+
+  // ✅ Keep walletAddress synced with sessionStorage
+useEffect(() => {
+  if (walletAddress) {
+    sessionStorage.setItem('walletAddress', walletAddress);
+  } else {
+    sessionStorage.removeItem('walletAddress');
+  }
+}, [walletAddress]);
 
   if (loading) return <div>Loading...</div>;
   if (!authorized) return <Navigate to="/login" replace />;
