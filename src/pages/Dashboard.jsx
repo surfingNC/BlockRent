@@ -1,14 +1,21 @@
 // src/pages/Dashboard.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
+import DashboardHeader from '../components/DashboardHeader.js';
+import '../styles/index.css';
 
 function Dashboard() {
   const navigate = useNavigate();
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [username, setUsername] = useState('');
 
   useEffect(() => {
     const token = sessionStorage.getItem('token');
+    const storedUsername = sessionStorage.getItem('username');
+    if (storedUsername) {
+      setUsername(storedUsername);
+    }
     if (!token) {
       setAuthorized(false);
       setLoading(false);
@@ -45,61 +52,52 @@ function Dashboard() {
   return (
     <div
       style={{
+        backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed',
         minHeight: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        flexDirection: 'column',
-        gap: '20px',
-        backgroundColor: '#f5f5f5',
+        width: '100%',
       }}
     >
-      <button
-        onClick={() => navigate('/listings')}
+      <DashboardHeader username={username} />
+      <div
         style={{
-          padding: '12px 24px',
-          backgroundColor: '#4CAF50',
-          color: 'white',
-          fontSize: '18px',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          width: '220px',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 72px)',
         }}
       >
-        Browse Listings
-      </button>
+        <div className="app-container">
+          <div
+            style={{
+              backgroundColor: 'white',
+              padding: '40px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+              alignItems: 'center',
+              zIndex: 1,
+            }}
+          >
+            <button onClick={() => navigate('/listings')} className="dashboard-button browse">
+              Browse Listings
+            </button>
 
-      <button
-        onClick={() => navigate('/list-your-home')}
-        style={{
-          padding: '12px 24px',
-          backgroundColor: '#2196F3',
-          color: 'white',
-          fontSize: '18px',
-          border: 'none',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          width: '220px',
-        }}
-      >
-        List Your Home for Rent
-      </button>
+            <button onClick={() => navigate('/list-your-home')} className="dashboard-button list">
+              List Your Home for Rent
+            </button>
 
-      <button
-        onClick={handleLogout}
-        style={{
-          marginTop: '20px',
-          padding: '8px 16px',
-          backgroundColor: 'black',
-          color: 'white',
-          border: 'none',
-          borderRadius: '4px',
-          cursor: 'pointer',
-        }}
-      >
-        Logout
-      </button>
+            <button onClick={handleLogout} className="dashboard-button logout">
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // src/pages/Listings.jsx
 import React, { useEffect, useState } from 'react';
+import Header from '../components/Header.js';
 
 function Listings() {
   const [listings, setListings] = useState([]);
@@ -50,22 +51,25 @@ function Listings() {
   };
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <h2>Available Listings</h2>
-      <div>
-        {listings.map((listing, index) => (
-          <div key={listing._id}>
-            <ListingCard listing={listing} setLightbox={setLightbox} openApply={() => setApplyModal({ open: true, listing })} />
-            {index < listings.length - 1 && <hr style={{ margin: '2rem 0' }} />}
-          </div>
-        ))}
+    <div>
+      <Header />
+      <div style={{ padding: '2rem' }}>
+        <h2>Available Listings</h2>
+        <div>
+          {listings.map((listing, index) => (
+            <div key={listing._id}>
+              <ListingCard listing={listing} setLightbox={setLightbox} openApply={() => setApplyModal({ open: true, listing })} />
+              {index < listings.length - 1 && <hr style={{ margin: '2rem 0' }} />}
+            </div>
+          ))}
+        </div>
+        {lightbox.open && (
+          <Lightbox images={lightbox.images} index={lightbox.index} setLightbox={setLightbox} />
+        )}
+        {applyModal.open && (
+          <ApplyForm listing={applyModal.listing} onSubmit={handleApplySubmit} onClose={() => setApplyModal({ open: false, listing: null })} />
+        )}
       </div>
-      {lightbox.open && (
-        <Lightbox images={lightbox.images} index={lightbox.index} setLightbox={setLightbox} />
-      )}
-      {applyModal.open && (
-        <ApplyForm listing={applyModal.listing} onSubmit={handleApplySubmit} onClose={() => setApplyModal({ open: false, listing: null })} />
-      )}
     </div>
   );
 }

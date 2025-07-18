@@ -1,6 +1,7 @@
 // src\pages\Register.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Header from '../components/Header.js';
 
 function Register() {
   const [email, setEmail] = useState('');
@@ -66,97 +67,103 @@ function Register() {
     }
   };
 
-return (
-  <div
-    style={{
-      backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat',
-      backgroundAttachment: 'fixed',
-      minHeight: '100vh',
-      width: '100%',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}
-  >
-    <div className="app-container">
-      <div className="login-box">
-        <h2 style={{ textAlign: 'center' }}>Register</h2>
-        <form onSubmit={handleRegister}>
-          <div className="input-group">
-            <label htmlFor="email">Email</label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="username">Username</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="confirmPassword">Confirm Password</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              value={confirmPassword}
-              onChange={handleConfirmPasswordChange}
-              required
-              style={{
-                borderColor: !passwordsMatch ? 'red' : '',
-                borderWidth: !passwordsMatch ? '2px' : '',
-              }}
-            />
-            {!passwordsMatch && (
-              <p style={{ color: 'red', fontSize: '0.9em', marginTop: '5px' }}>
-                Passwords do not match
-              </p>
-            )}
-          </div>
-          <button type="submit" disabled={!passwordsMatch}>Sign Up</button>
-        </form>
+  return (
+    <div
+      style={{
+        backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed',
+        minHeight: '100vh',
+        width: '100%'
+      }}
+    >
+      <Header />
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 72px)'
+        }}
+      >
+        <div className="app-container">
+          <div className="login-box">
+            <h2 style={{ textAlign: 'center' }}>Register</h2>
+            <form onSubmit={handleRegister}>
+              <div className="input-group">
+                <label htmlFor="email">Email</label>
+                <input
+                  type="email"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label htmlFor="username">Username</label>
+                <input
+                  type="text"
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label htmlFor="password">Password</label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="input-group">
+                <label htmlFor="confirmPassword">Confirm Password</label>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  value={confirmPassword}
+                  onChange={handleConfirmPasswordChange}
+                  required
+                  style={{
+                    borderColor: !passwordsMatch ? 'red' : '',
+                    borderWidth: !passwordsMatch ? '2px' : ''
+                  }}
+                />
+                {!passwordsMatch && (
+                  <p style={{ color: 'red', fontSize: '0.9em', marginTop: '5px' }}>
+                    Passwords do not match
+                  </p>
+                )}
+              </div>
+              <button type="submit" disabled={!passwordsMatch}>Sign Up</button>
+            </form>
 
-        <button
-          type="button"
-          style={{
-            marginTop: '1rem',
-            backgroundColor: '#cc0000',
-            color: '#fff',
-            padding: '0.5rem 1rem',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-          onClick={handleResetDatabase}
-        >
-          🔄 Reset Dev DB
-        </button>
+            <button
+              type="button"
+              style={{
+                marginTop: '1rem',
+                backgroundColor: '#cc0000',
+                color: '#fff',
+                padding: '0.5rem 1rem',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+              onClick={handleResetDatabase}
+            >
+              🔄 Reset Dev DB
+            </button>
+          </div>
+        </div>
       </div>
     </div>
-  </div>
-);
-
+  );
 }
 
 export default Register;

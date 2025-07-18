@@ -1,5 +1,6 @@
 // src/pages/ListingForm.jsx
 import React, { useState } from 'react';
+import Header from '../components/Header.js';
 
 function ListingForm() {
   const [formData, setFormData] = useState({
@@ -84,59 +85,62 @@ function ListingForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ maxWidth: '500px', margin: '0 auto' }}>
-      <h2>List Your Property</h2>
+    <div>
+      <Header />
+      <form onSubmit={handleSubmit} style={{ maxWidth: '500px', margin: '0 auto' }}>
+        <h2>List Your Property</h2>
 
-      <input
-        type="text"
-        name="streetAddress"
-        placeholder="Street Address"
-        value={formData.streetAddress}
-        onChange={handleInputChange}
-        required
-      />
+        <input
+          type="text"
+          name="streetAddress"
+          placeholder="Street Address"
+          value={formData.streetAddress}
+          onChange={handleInputChange}
+          required
+        />
 
-      <input
-        type="text"
-        name="zipCode"
-        placeholder="Zip Code"
-        value={formData.zipCode}
-        onChange={handleInputChange}
-        required
-      />
+        <input
+          type="text"
+          name="zipCode"
+          placeholder="Zip Code"
+          value={formData.zipCode}
+          onChange={handleInputChange}
+          required
+        />
 
-      <textarea
-        name="description"
-        placeholder="Brief Description"
-        value={formData.description}
-        onChange={handleInputChange}
-        required
-      ></textarea>
+        <textarea
+          name="description"
+          placeholder="Brief Description"
+          value={formData.description}
+          onChange={handleInputChange}
+          required
+        ></textarea>
 
-      <input
-        type="email"
-        name="contactEmail"
-        placeholder="Contact Email"
-        value={formData.contactEmail}
-        onChange={handleInputChange}
-        required
-      />
+        <input
+          type="email"
+          name="contactEmail"
+          placeholder="Contact Email"
+          value={formData.contactEmail}
+          onChange={handleInputChange}
+          required
+        />
 
-      <input
-        type="number"
-        name="price"
-        placeholder="Price per Month (USD)"
-        value={formData.price}
-        onChange={handleInputChange}
-        required
-      />
+        <input
+          type="number"
+          name="price"
+          placeholder="Price per Month (USD)"
+          value={formData.price}
+          onChange={handleInputChange}
+          required
+        />
 
-      <input type="file" accept="image/*" multiple onChange={handleImageChange} required />
+        <input type="file" accept="image/*" multiple onChange={handleImageChange} required />
 
-      <button type="submit" disabled={uploading}>
-        {uploading ? 'Uploading...' : 'Submit Listing'}
-      </button>
-    </form>
+        <button type="submit" disabled={uploading}>
+          {uploading ? 'Uploading...' : 'Submit Listing'}
+        </button>
+      </form>
+    </div>
   );
 }
 

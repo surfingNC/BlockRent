@@ -1,6 +1,7 @@
 // src/pages/Login.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import Header from '../components/Header.js';
 
 function Login() {
   const [username, setUsername] = useState('');
@@ -10,7 +11,6 @@ function Login() {
   const [errorMsg, setErrorMsg] = useState(null);
   const navigate = useNavigate();
 
-  // Redirect if already logged in
   useEffect(() => {
     const token = sessionStorage.getItem('token');
     if (token) {
@@ -18,7 +18,6 @@ function Login() {
     }
   }, [navigate]);
 
-  // Fetch live BTC price
   useEffect(() => {
     const fetchBitcoinPrice = async () => {
       try {
@@ -66,83 +65,88 @@ function Login() {
     setLoading(false);
   };
 
-return (
-  <div
-    style={{
-      backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
-      backgroundSize: 'cover',
-      backgroundPosition: 'center',
-      backgroundRepeat: 'no-repeat',
-      backgroundAttachment: 'fixed',
-      minHeight: '100vh',
-      width: '100%',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}
-  >
-    <div className="app-container">
-      <div className="login-box">
-        <h2 style={{ textAlign: 'center' }}>Login</h2>
+  return (
+    <div
+      style={{
+        backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+        backgroundAttachment: 'fixed',
+        minHeight: '100vh',
+        width: '100%',
+      }}
+    >
+      <Header />
 
-        {/* Live BTC price display */}
-        {btcPrice !== null && (
-          <div
-            style={{
-              marginBottom: '16px',
-              padding: '12px',
-              borderRadius: '10px',
-              backgroundColor: '#f3f4f6',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              textAlign: 'center',
-              fontWeight: '500',
-              color: '#1f2937',
-              fontSize: '1rem',
-            }}
-          >
-            🪙 Current Bitcoin Price:{' '}
-            <span style={{ fontWeight: 'bold' }}>${btcPrice.toLocaleString()}</span>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 72px)',
+        }}
+      >
+        <div className="app-container">
+          <div className="login-box">
+            <h2 style={{ textAlign: 'center' }}>Login</h2>
+
+            {btcPrice !== null && (
+              <div
+                style={{
+                  marginBottom: '16px',
+                  padding: '12px',
+                  borderRadius: '10px',
+                  backgroundColor: '#f3f4f6',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  textAlign: 'center',
+                  fontWeight: '500',
+                  color: '#1f2937',
+                  fontSize: '1rem',
+                }}
+              >
+                🪙 Current Bitcoin Price:{' '}
+                <span style={{ fontWeight: 'bold' }}>${btcPrice.toLocaleString()}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
+              <div className="input-group">
+                <label htmlFor="username">Username</label>
+                <input
+                  type="text"
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="input-group">
+                <label htmlFor="password">Password</label>
+                <input
+                  type="password"
+                  id="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button type="submit" disabled={loading}>
+                {loading ? 'Logging in...' : 'Login'}
+              </button>
+            </form>
+
+            <p>
+              Don't have an account? <Link to="/register">Sign Up</Link>
+            </p>
           </div>
-        )}
-
-        {/* Login form */}
-        <form onSubmit={handleSubmit}>
-          {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
-          <div className="input-group">
-            <label htmlFor="username">Username</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="input-group">
-            <label htmlFor="password">Password</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-
-          <button type="submit" disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
-
-        <p>
-          Don't have an account? <Link to="/register">Sign Up</Link>
-        </p>
+        </div>
       </div>
     </div>
-  </div>
-);
-
+  );
 }
 
 export default Login;
