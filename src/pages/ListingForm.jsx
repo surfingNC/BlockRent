@@ -6,6 +6,7 @@ function ListingForm() {
   const [formData, setFormData] = useState({
     streetAddress: '',
     zipCode: '',
+    state: '',
     description: '',
     contactEmail: '',
     price: '',
@@ -74,7 +75,14 @@ function ListingForm() {
       if (!res.ok) throw new Error('Failed to create listing');
 
       alert('✅ Property listed successfully!');
-      setFormData({ streetAddress: '', zipCode: '', description: '', contactEmail: '', price: '' });
+      setFormData({
+        streetAddress: '',
+        zipCode: '',
+        state: '',
+        description: '',
+        contactEmail: '',
+        price: '',
+      });
       setImages([]);
     } catch (err) {
       console.error('Error submitting listing:', err);
@@ -87,8 +95,11 @@ function ListingForm() {
   return (
     <div>
       <Header />
-      <form onSubmit={handleSubmit} style={{ maxWidth: '500px', margin: '0 auto' }}>
-        <h2>List Your Property</h2>
+      <form
+        onSubmit={handleSubmit}
+        className="max-w-lg mx-auto p-4 bg-white shadow-md rounded"
+      >
+        <h2 className="text-xl font-semibold mb-4">List Your Property</h2>
 
         <input
           type="text"
@@ -97,6 +108,7 @@ function ListingForm() {
           value={formData.streetAddress}
           onChange={handleInputChange}
           required
+          className="w-full mb-3 p-2 border border-gray-300 rounded"
         />
 
         <input
@@ -106,7 +118,27 @@ function ListingForm() {
           value={formData.zipCode}
           onChange={handleInputChange}
           required
+          className="w-full mb-3 p-2 border border-gray-300 rounded"
         />
+
+        <select
+          name="state"
+          value={formData.state}
+          onChange={handleInputChange}
+          required
+          className="w-full mb-3 p-2 border border-gray-300 rounded bg-white"
+        >
+          <option value="">Select State</option>
+          {[
+            'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+            'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+            'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+            'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+            'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
+          ].map((abbr) => (
+            <option key={abbr} value={abbr}>{abbr}</option>
+          ))}
+        </select>
 
         <textarea
           name="description"
@@ -114,6 +146,7 @@ function ListingForm() {
           value={formData.description}
           onChange={handleInputChange}
           required
+          className="w-full mb-3 p-2 border border-gray-300 rounded"
         ></textarea>
 
         <input
@@ -123,6 +156,7 @@ function ListingForm() {
           value={formData.contactEmail}
           onChange={handleInputChange}
           required
+          className="w-full mb-3 p-2 border border-gray-300 rounded"
         />
 
         <input
@@ -132,11 +166,25 @@ function ListingForm() {
           value={formData.price}
           onChange={handleInputChange}
           required
+          className="w-full mb-3 p-2 border border-gray-300 rounded"
         />
 
-        <input type="file" accept="image/*" multiple onChange={handleImageChange} required />
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleImageChange}
+          required
+          className="w-full mb-4"
+        />
 
-        <button type="submit" disabled={uploading}>
+        <button
+          type="submit"
+          disabled={uploading}
+          className={`w-full p-2 rounded text-white ${
+            uploading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+          }`}
+        >
           {uploading ? 'Uploading...' : 'Submit Listing'}
         </button>
       </form>

@@ -1,4 +1,3 @@
-// backend/routes/listings.js
 import express from 'express';
 import verifyToken from '../middleware/authMiddleware.js';
 import Listing from '../models/Listing.js';
@@ -8,11 +7,21 @@ const router = express.Router();
 // === POST Create Listing ===
 router.post('/listings', verifyToken, async (req, res) => {
   try {
-    const { streetAddress, zipCode, description, contactEmail, imageUrls, price } = req.body;
+    const {
+      streetAddress,
+      zipCode,
+      state,              
+      description,
+      contactEmail,
+      imageUrls,
+      price,
+    } = req.body;
+
     const newListing = new Listing({
       owner: req.user.id,
       streetAddress,
       zipCode,
+      state,             
       description,
       contactEmail,
       imageUrls,

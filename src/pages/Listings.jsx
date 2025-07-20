@@ -1,9 +1,10 @@
-// src/pages/Listings.jsx
 import React, { useEffect, useState } from 'react';
 import Header from '../components/Header.js';
 
 function Listings() {
   const [listings, setListings] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [selectedState, setSelectedState] = useState('');
   const [lightbox, setLightbox] = useState({ open: false, images: [], index: 0 });
   const [applyModal, setApplyModal] = useState({ open: false, listing: null });
   const API_URL = 'http://localhost:5000';
@@ -11,9 +12,22 @@ function Listings() {
   useEffect(() => {
     fetch(`${API_URL}/api/listings`)
       .then((res) => res.json())
-      .then((data) => setListings(data))
+      .then((data) => {
+        setListings(data);
+        setFiltered(data);
+      })
       .catch((err) => console.error('Error fetching listings:', err));
   }, []);
+
+  const handleFilterChange = (e) => {
+    const state = e.target.value;
+    setSelectedState(state);
+    if (state === '') {
+      setFiltered(listings);
+    } else {
+      setFiltered(listings.filter((l) => l.state === state));
+    }
+  };
 
   const handleApplySubmit = async (applicantName, applicantEmail, messageText, listing) => {
     try {
@@ -55,19 +69,51 @@ function Listings() {
       <Header />
       <div style={{ padding: '2rem' }}>
         <h2>Available Listings</h2>
-        <div>
-          {listings.map((listing, index) => (
-            <div key={listing._id}>
-              <ListingCard listing={listing} setLightbox={setLightbox} openApply={() => setApplyModal({ open: true, listing })} />
-              {index < listings.length - 1 && <hr style={{ margin: '2rem 0' }} />}
-            </div>
-          ))}
+
+        {/* State filter dropdown */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <select
+            value={selectedState}
+            onChange={handleFilterChange}
+            style={{ padding: '0.5rem', fontSize: '1rem' }}
+          >
+            <option value="">All States</option>
+            {[
+              'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+              'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+              'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+              'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+              'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'
+            ].map((abbr) => (
+              <option key={abbr} value={abbr}>{abbr}</option>
+            ))}
+          </select>
         </div>
+
+        {filtered.map((listing, index) => (
+          <div key={listing._id}>
+            <ListingCard
+              listing={listing}
+              setLightbox={setLightbox}
+              openApply={() => setApplyModal({ open: true, listing })}
+            />
+            {index < filtered.length - 1 && <hr style={{ margin: '2rem 0' }} />}
+          </div>
+        ))}
+
         {lightbox.open && (
-          <Lightbox images={lightbox.images} index={lightbox.index} setLightbox={setLightbox} />
+          <Lightbox
+            images={lightbox.images}
+            index={lightbox.index}
+            setLightbox={setLightbox}
+          />
         )}
         {applyModal.open && (
-          <ApplyForm listing={applyModal.listing} onSubmit={handleApplySubmit} onClose={() => setApplyModal({ open: false, listing: null })} />
+          <ApplyForm
+            listing={applyModal.listing}
+            onSubmit={handleApplySubmit}
+            onClose={() => setApplyModal({ open: false, listing: null })}
+          />
         )}
       </div>
     </div>
@@ -98,7 +144,7 @@ function ListingCard({ listing, setLightbox, openApply }) {
         </div>
       )}
       <h3>{listing.streetAddress}</h3>
-      <p>Zip: {listing.zipCode}</p>
+      <p>Zip: {listing.zipCode} | State: {listing.state}</p>
       <p>{listing.description}</p>
       <p>Contact: {listing.contactEmail}</p>
       <p>Price: ${listing.price} / month</p>
@@ -118,8 +164,13 @@ function ApplyForm({ listing, onSubmit, onClose }) {
   };
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-      <form onSubmit={handleSubmit} style={{ background: '#fff', padding: '2rem', borderRadius: '8px', maxWidth: '400px', width: '100%' }}>
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex',
+      justifyContent: 'center', alignItems: 'center', zIndex: 1000
+    }}>
+      <form onSubmit={handleSubmit}
+        style={{ background: '#fff', padding: '2rem', borderRadius: '8px', maxWidth: '400px', width: '100%' }}>
         <h2>Apply for {listing.streetAddress}</h2>
         <input type="text" placeholder="Your Name" value={applicantName} onChange={(e) => setApplicantName(e.target.value)} required />
         <input type="email" placeholder="Your Email" value={applicantEmail} onChange={(e) => setApplicantEmail(e.target.value)} required />
@@ -138,11 +189,18 @@ function Lightbox({ images, index, setLightbox }) {
   const prev = () => setCurrent((prev) => (prev - 1 + images.length) % images.length);
 
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
-      <button onClick={() => setLightbox({ open: false, images: [], index: 0 })} style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>×</button>
-      <button onClick={prev} style={{ position: 'absolute', top: '50%', left: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>&lt;</button>
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex',
+      justifyContent: 'center', alignItems: 'center', zIndex: 1000
+    }}>
+      <button onClick={() => setLightbox({ open: false, images: [], index: 0 })}
+        style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>×</button>
+      <button onClick={prev}
+        style={{ position: 'absolute', top: '50%', left: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>&lt;</button>
       <img src={images[current]} alt="Property" style={{ maxWidth: '90%', maxHeight: '90%' }} />
-      <button onClick={next} style={{ position: 'absolute', top: '50%', right: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>&gt;</button>
+      <button onClick={next}
+        style={{ position: 'absolute', top: '50%', right: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>&gt;</button>
     </div>
   );
 }
