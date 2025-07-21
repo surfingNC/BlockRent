@@ -1,32 +1,57 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Header from '../components/Header.js';
 
 function Listings() {
-  const [listings, setListings] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [selectedState, setSelectedState] = useState('');
+  const [zipInput, setZipInput] = useState('');
+  const [radius, setRadius] = useState('25');
   const [lightbox, setLightbox] = useState({ open: false, images: [], index: 0 });
   const [applyModal, setApplyModal] = useState({ open: false, listing: null });
+
   const API_URL = 'http://localhost:5000';
 
-  useEffect(() => {
-    fetch(`${API_URL}/api/listings`)
-      .then((res) => res.json())
-      .then((data) => {
-        setListings(data);
-        setFiltered(data);
-      })
-      .catch((err) => console.error('Error fetching listings:', err));
-  }, []);
+  const fetchListings = async (zip = '', state = '') => {
+    try {
+      const query = new URLSearchParams();
+      if (zip) query.append('zip', zip);
+      const res = await fetch(`${API_URL}/api/listings?${query}`);
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Failed to fetch listings');
+
+      let results = data;
+
+      if (state) {
+        results = results.filter((l) => l.state === state);
+      }
+
+      // Filter by distance radius
+      results = results.filter(
+        (l) => typeof l.distance === 'number' && l.distance <= parseInt(radius)
+      );
+
+      setFiltered(results);
+    } catch (err) {
+      console.error('Error fetching listings:', err);
+      alert(err.message || 'Failed to load listings');
+    }
+  };
 
   const handleFilterChange = (e) => {
     const state = e.target.value;
     setSelectedState(state);
-    if (state === '') {
-      setFiltered(listings);
-    } else {
-      setFiltered(listings.filter((l) => l.state === state));
+    if (zipInput.match(/^\d{5}$/)) {
+      fetchListings(zipInput, state);
     }
+  };
+
+  const handleZipSort = () => {
+    if (!zipInput.match(/^\d{5}$/)) {
+      alert('Please enter a valid 5-digit ZIP code.');
+      return;
+    }
+    fetchListings(zipInput, selectedState);
   };
 
   const handleApplySubmit = async (applicantName, applicantEmail, messageText, listing) => {
@@ -70,16 +95,15 @@ function Listings() {
       <div style={{ padding: '2rem' }}>
         <h2>Available Listings</h2>
 
-        {/* State filter dropdown */}
+        {/* Filter UI */}
         <div style={{ marginBottom: '1.5rem' }}>
           <select
             value={selectedState}
             onChange={handleFilterChange}
-            style={{ padding: '0.5rem', fontSize: '1rem' }}
+            style={{ padding: '0.5rem', fontSize: '1rem', marginRight: '1rem' }}
           >
             <option value="">All States</option>
-            {[
-              'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+            {[ 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
               'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
               'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
               'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
@@ -88,18 +112,59 @@ function Listings() {
               <option key={abbr} value={abbr}>{abbr}</option>
             ))}
           </select>
+
+          <input
+            type="text"
+            value={zipInput}
+            onChange={(e) => setZipInput(e.target.value)}
+            placeholder="ZIP (e.g. 28405)"
+            style={{ padding: '0.5rem', marginRight: '0.5rem', width: '100px' }}
+          />
+
+          <select
+            value={radius}
+            onChange={(e) => setRadius(e.target.value)}
+            style={{ padding: '0.5rem', marginRight: '0.5rem' }}
+          >
+            {[5, 10, 25, 50, 100].map((r) => (
+              <option key={r} value={r}>
+                Within {r} miles
+              </option>
+            ))}
+          </select>
+
+          <button onClick={handleZipSort} style={{ padding: '0.5rem 1rem' }}>
+            Search
+          </button>
         </div>
 
-        {filtered.map((listing, index) => (
-          <div key={listing._id}>
-            <ListingCard
-              listing={listing}
-              setLightbox={setLightbox}
-              openApply={() => setApplyModal({ open: true, listing })}
-            />
-            {index < filtered.length - 1 && <hr style={{ margin: '2rem 0' }} />}
-          </div>
-        ))}
+        {/* Listings */}
+        {zipInput === '' ? (
+          <p style={{ marginTop: '2rem', color: '#888' }}>
+            Please enter a ZIP code and click "Search" to view listings nearby.
+          </p>
+        ) : (
+          <>
+            {filtered.length === 0 ? (
+              <p style={{ marginTop: '2rem', color: '#888' }}>
+                No listings found within {radius} miles of ZIP {zipInput}
+                {selectedState && ` in ${selectedState}`}.
+              </p>
+            ) : (
+              filtered.map((listing, index) => (
+                <div key={listing._id}>
+                  <ListingCard
+                    listing={listing}
+                    zipRef={zipInput}
+                    setLightbox={setLightbox}
+                    openApply={() => setApplyModal({ open: true, listing })}
+                  />
+                  {index < filtered.length - 1 && <hr style={{ margin: '2rem 0' }} />}
+                </div>
+              ))
+            )}
+          </>
+        )}
 
         {lightbox.open && (
           <Lightbox
@@ -120,7 +185,7 @@ function Listings() {
   );
 }
 
-function ListingCard({ listing, setLightbox, openApply }) {
+function ListingCard({ listing, zipRef, setLightbox, openApply }) {
   const [currentImage, setCurrentImage] = useState(0);
 
   const nextImage = () => setCurrentImage((prev) => (prev + 1) % listing.imageUrls.length);
@@ -145,6 +210,11 @@ function ListingCard({ listing, setLightbox, openApply }) {
       )}
       <h3>{listing.streetAddress}</h3>
       <p>Zip: {listing.zipCode} | State: {listing.state}</p>
+      {listing.distance !== undefined && !isNaN(listing.distance) && (
+        <p style={{ fontStyle: 'italic', color: '#555' }}>
+          Approx. {listing.distance} miles from {zipRef}
+        </p>
+      )}
       <p>{listing.description}</p>
       <p>Contact: {listing.contactEmail}</p>
       <p>Price: ${listing.price} / month</p>

@@ -1,4 +1,3 @@
-// src/pages/ListingForm.jsx
 import React, { useState } from 'react';
 import Header from '../components/Header.js';
 
@@ -30,25 +29,20 @@ function ListingForm() {
     const uploadedUrls = [];
     for (let file of images) {
       const fileName = `${Date.now()}-${file.name}`;
-
       const res = await fetch(
         `${API_URL}/api/s3/upload-url?fileName=${encodeURIComponent(fileName)}&fileType=${encodeURIComponent(file.type)}`
       );
-
       const { uploadUrl } = await res.json();
 
       await fetch(uploadUrl, {
         method: 'PUT',
-        headers: {
-          'Content-Type': file.type,
-        },
+        headers: { 'Content-Type': file.type },
         body: file,
       });
 
       const publicUrl = uploadUrl.split('?')[0];
       uploadedUrls.push(publicUrl);
     }
-
     return uploadedUrls;
   };
 
@@ -93,101 +87,104 @@ function ListingForm() {
   };
 
   return (
-    <div>
+    <div className="min-h-screen bg-gray-100">
       <Header />
-      <form
-        onSubmit={handleSubmit}
-        className="max-w-lg mx-auto p-4 bg-white shadow-md rounded"
-      >
-        <h2 className="text-xl font-semibold mb-4">List Your Property</h2>
-
-        <input
-          type="text"
-          name="streetAddress"
-          placeholder="Street Address"
-          value={formData.streetAddress}
-          onChange={handleInputChange}
-          required
-          className="w-full mb-3 p-2 border border-gray-300 rounded"
-        />
-
-        <input
-          type="text"
-          name="zipCode"
-          placeholder="Zip Code"
-          value={formData.zipCode}
-          onChange={handleInputChange}
-          required
-          className="w-full mb-3 p-2 border border-gray-300 rounded"
-        />
-
-        <select
-          name="state"
-          value={formData.state}
-          onChange={handleInputChange}
-          required
-          className="w-full mb-3 p-2 border border-gray-300 rounded bg-white"
+      <div className="flex justify-center items-center py-10">
+        <form
+          onSubmit={handleSubmit}
+          className="w-full max-w-xl bg-white rounded-2xl shadow-lg p-8 space-y-4"
         >
-          <option value="">Select State</option>
-          {[
-            'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
-            'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
-            'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-            'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
-            'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
-          ].map((abbr) => (
-            <option key={abbr} value={abbr}>{abbr}</option>
-          ))}
-        </select>
+          <h2 className="text-2xl font-semibold text-center mb-6">List Your Property</h2>
 
-        <textarea
-          name="description"
-          placeholder="Brief Description"
-          value={formData.description}
-          onChange={handleInputChange}
-          required
-          className="w-full mb-3 p-2 border border-gray-300 rounded"
-        ></textarea>
+          <input
+            type="text"
+            name="streetAddress"
+            placeholder="Street Address"
+            value={formData.streetAddress}
+            onChange={handleInputChange}
+            required
+            className="w-full p-3 border border-gray-300 rounded"
+          />
 
-        <input
-          type="email"
-          name="contactEmail"
-          placeholder="Contact Email"
-          value={formData.contactEmail}
-          onChange={handleInputChange}
-          required
-          className="w-full mb-3 p-2 border border-gray-300 rounded"
-        />
+          <input
+            type="text"
+            name="zipCode"
+            placeholder="Zip Code"
+            value={formData.zipCode}
+            onChange={handleInputChange}
+            required
+            className="w-full p-3 border border-gray-300 rounded"
+          />
 
-        <input
-          type="number"
-          name="price"
-          placeholder="Price per Month (USD)"
-          value={formData.price}
-          onChange={handleInputChange}
-          required
-          className="w-full mb-3 p-2 border border-gray-300 rounded"
-        />
+          <select
+            name="state"
+            value={formData.state}
+            onChange={handleInputChange}
+            required
+            className="w-full p-3 border border-gray-300 rounded bg-white"
+          >
+            <option value="">Select State</option>
+            {[
+              'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+              'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+              'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+              'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+              'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
+            ].map((abbr) => (
+              <option key={abbr} value={abbr}>{abbr}</option>
+            ))}
+          </select>
 
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleImageChange}
-          required
-          className="w-full mb-4"
-        />
+          <textarea
+            name="description"
+            placeholder="Brief Description"
+            value={formData.description}
+            onChange={handleInputChange}
+            required
+            rows={6}
+            className="w-full p-3 border border-gray-300 rounded resize-none"
+          ></textarea>
 
-        <button
-          type="submit"
-          disabled={uploading}
-          className={`w-full p-2 rounded text-white ${
-            uploading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
-          {uploading ? 'Uploading...' : 'Submit Listing'}
-        </button>
-      </form>
+          <input
+            type="email"
+            name="contactEmail"
+            placeholder="Contact Email"
+            value={formData.contactEmail}
+            onChange={handleInputChange}
+            required
+            className="w-full p-3 border border-gray-300 rounded"
+          />
+
+          <input
+            type="number"
+            name="price"
+            placeholder="Price per Month (USD)"
+            value={formData.price}
+            onChange={handleInputChange}
+            required
+            className="w-full p-3 border border-gray-300 rounded"
+          />
+
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageChange}
+            required
+            className="w-full p-2"
+          />
+
+          <button
+            type="submit"
+            disabled={uploading}
+            className={`w-full p-3 rounded text-white font-semibold ${
+              uploading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {uploading ? 'Uploading...' : 'Submit Listing'}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
