@@ -22,6 +22,10 @@ import leaseRoutes from './routes/lease.js';
 import s3Routes from './routes/s3Routes.js';
 import listingsRoutes from './routes/listings.js';
 import applyRoutes from './routes/apply.js';
+import paymentRoutes from './routes/payments.js';
+import notificationRoutes from './routes/notifications.js';
+import profileRoutes from './routes/profile.js';
+
 
 const app = express();
 
@@ -47,6 +51,10 @@ app.use('/api/lease', leaseRoutes);
 app.use('/api/s3', s3Routes);
 app.use('/api', listingsRoutes);
 app.use('/api', applyRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/profile', profileRoutes);
+
 
 mongoose
   .connect(process.env.MONGO_URI, {

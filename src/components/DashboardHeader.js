@@ -29,7 +29,7 @@ function DashboardHeader({ username }) {
         />
       </Link>
       <div style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '2.25rem' }}>
-        Welcome to BlockRent, {username}
+         {username}
       </div>
     </header>
   );

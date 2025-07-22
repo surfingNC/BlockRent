@@ -21,6 +21,7 @@ const ListingSchema = new mongoose.Schema({
   contactEmail: { type: String, required: true },
   imageUrls: [{ type: String }],
   price: { type: Number, required: true },
+  acceptApplications: { type: Boolean, default: true }, // ✅ New field
   createdAt: { type: Date, default: Date.now },
 });
 

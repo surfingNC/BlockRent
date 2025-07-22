@@ -9,6 +9,7 @@ function ListingForm() {
     description: '',
     contactEmail: '',
     price: '',
+    acceptApplications: true, // ✅ New field
   });
 
   const [images, setImages] = useState([]);
@@ -17,8 +18,8 @@ function ListingForm() {
   const API_URL = 'http://localhost:5000';
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    const { name, value, type, checked } = e.target;
+    setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
   };
 
   const handleImageChange = (e) => {
@@ -76,6 +77,7 @@ function ListingForm() {
         description: '',
         contactEmail: '',
         price: '',
+        acceptApplications: true, // reset to default
       });
       setImages([]);
     } catch (err) {
@@ -164,6 +166,19 @@ function ListingForm() {
             required
             className="w-full p-3 border border-gray-300 rounded"
           />
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              name="acceptApplications"
+              checked={formData.acceptApplications}
+              onChange={handleInputChange}
+              className="h-4 w-4"
+            />
+            <label htmlFor="acceptApplications" className="text-sm text-gray-700">
+              Accept applications via BlockRent
+            </label>
+          </div>
 
           <input
             type="file"

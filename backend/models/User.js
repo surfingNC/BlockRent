@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
   btcWallet: String,
   walletBalance: { type: Number, default: 0 },
   walletVerified: { type: Boolean, default: false },
+  phone: { type: String, default: '' },
 });
 
 export default mongoose.model('User', UserSchema);
