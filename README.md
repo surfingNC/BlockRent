@@ -1,97 +1,60 @@
-🏠 BlockRent — Bitcoin-Collateralized Leasing Platform
-BlockRent enables secure lease agreements backed by Bitcoin collateral. The platform acts as a trusted custodian, holding tenant BTC deposits in escrow and enforcing release conditions based on lease terms.
+# 🏠 BlockRent – Bitcoin-Backed Rental Platform
 
-🎯 Project Goal
-Build a custodial trust platform where:
+**BlockRent** is a rental listing platform where tenants apply for leases by proving they hold sufficient Bitcoin savings — offering an alternative to traditional credit checks and income verification. The platform gives landlords confidence through cryptographic wallet verification, without ever taking custody of tenant funds.
 
-Tenants deposit Bitcoin as collateral
+---
 
-Funds are held securely by the platform
+## 🎯 What It Does
 
-Landlords are protected from default
+- 🏠 Landlords list rental properties across the U.S.
+- 🔗 Tenants apply by connecting their UniSat wallet and signing a proof-of-ownership message
+- 💰 The platform verifies Bitcoin balances — no deposits or custody involved
+- 📬 Landlords receive email notifications with applicant info and verified BTC balance
+- 🔒 Lease applications are backed by proof-of-BTC instead of credit checks or income statements
 
-Smart escrow rules and manual dispute resolution govern release
+---
 
-💡 Key Features
-Custodial BTC Wallets
+## 💡 Key Features
 
-Generate per-lease deposit addresses
+- **Bitcoin-Backed Applications**  
+  Tenants verify BTC wallet ownership and balance to apply for listings
 
-Offline/private key custody (manual signing for MVP)
+- **Email Notifications**  
+  Landlords are alerted of new applications with applicant name, balance, and message
 
-Real-time balance tracking
+- **Subscription Tiers**  
+  Agents unlock listing features by sending BTC to a designated address
 
-Smart Escrow System
+- **Listing Filters**  
+  Search properties by ZIP code, state, or proximity radius
 
-BTC held until lease completion
+- **Image Uploads**  
+  Multiple photos per property with lightbox viewer
 
-Automatic or admin-triggered release conditions
+---
 
-Manual overrides for disputes
+## 🛠 Tech Stack
 
-Lease Contract Binding
+- **Frontend**: React (Vite), Tailwind UI enhancements
+- **Backend**: Node.js (ESM), Express
+- **Database**: MongoDB Atlas
+- **Bitcoin Wallet Auth**: UniSat + ECDSA signature verification
+- **Pricing Feed**: CoinGecko BTC/USD
+- **Email**: Resend API
+- **Deployment**: Railway / Render / Vercel
 
-Upload or digitally create agreements
+---
 
-BTC deposit explicitly tied to lease terms
+## 🚀 Current Status
 
-Consent to arbitration and custodial trust
+✅ Email verification & JWT auth  
+✅ Property listing & image uploads  
+✅ Wallet connection + signature verification  
+✅ Application form + BTC proof  
+✅ Paid subscriptions via BTC
 
-Compliance Ready
+---
 
-FinCEN MSB triggers tracked
+## 🌱 Vision
 
-Legal terms, disclaimers, and user consent baked in
-
-KYC/AML ready if needed
-
-🚀 MVP Timeline (8 Weeks)
-Weeks 1–2: Platform foundation + Stripe billing
-
-Weeks 3–4: Wallet creation, contract upload, balance enforcement
-
-Weeks 5–6: Release logic, manual admin tools, notifications
-
-Weeks 7–8: Legal disclaimers, test pilots, soft launch
-
-🛠 Tech Stack
-Frontend: React (Vite)
-
-Backend: Node.js (ESM) + Express
-
-Custody: bitcoinjs-lib, manual signing
-
-Database: MongoDB Atlas
-
-Monitoring: Blockstream API or Electrum
-
-Billing: Stripe
-
-Hosting: Railway / Render / Vercel
-
-⚠️ Risk & Security
-Encrypted/offline private keys
-
-Admin sign-off for all withdrawals
-
-Transparent escrow rules and audit logs
-
-Browser never accesses BTC keys
-
-🌱 Launch Strategy
-Target early crypto landlords/tenants
-
-Create a waitlist and onboarding walkthrough
-
-Form legal entity if scaling
-
-Pilot with select users
-
-📌 Next Steps
-Finalize BTC custody workflow (manual or multisig)
-
-Define legal custodial terms
-
-Build Sprint 1 backlog
-
-Recruit pilot users
+BlockRent empowers crypto-savvy landlords and tenants to engage in BTC-backed rentals — without middlemen, without escrow, and with transparent application proof.
