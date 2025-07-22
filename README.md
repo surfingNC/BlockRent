@@ -38,6 +38,7 @@
 - **Frontend**: React (Vite), Tailwind UI enhancements
 - **Backend**: Node.js (ESM), Express
 - **Database**: MongoDB Atlas
+- **File Storage**: AWS S3 (image uploads via signed URLs)
 - **Bitcoin Wallet Auth**: UniSat + ECDSA signature verification
 - **Pricing Feed**: CoinGecko BTC/USD
 - **Email**: Resend API
