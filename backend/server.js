@@ -25,6 +25,7 @@ import applyRoutes from './routes/apply.js';
 import paymentRoutes from './routes/payments.js';
 import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
+import accessCodeRoutes from './routes/accessCode.js';
 
 import { pollPendingPayments } from './utils/pollPendingPayments.js';
 
@@ -55,6 +56,7 @@ app.use('/api', applyRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/access-code', accessCodeRoutes);
 
 mongoose
   .connect(process.env.MONGO_URI, {

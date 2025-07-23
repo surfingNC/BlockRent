@@ -13,6 +13,7 @@ function Dashboard() {
   useEffect(() => {
     const token = sessionStorage.getItem('token');
     const walletAddress = sessionStorage.getItem('walletAddress');
+    const email = sessionStorage.getItem('email');
 
     if (!token) {
       setAuthorized(false);
@@ -38,8 +39,12 @@ function Dashboard() {
         setLoading(false);
       });
 
-    if (walletAddress) {
-      fetch(`/api/payments/status?walletAddress=${walletAddress}`)
+    if (walletAddress || email) {
+      const queryParam = walletAddress
+        ? `walletAddress=${walletAddress}`
+        : `email=${email}`;
+
+      fetch(`/api/payments/status?${queryParam}`)
         .then(res => res.json())
         .then(data => setSubscription(data))
         .catch(err => console.error('Failed to load subscription:', err));
@@ -66,7 +71,6 @@ function Dashboard() {
         width: '100%',
       }}
     >
-      {/* Full-width header like Listings page */}
       <Header />
 
       <div

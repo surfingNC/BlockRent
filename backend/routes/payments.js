@@ -1,4 +1,4 @@
-// ✅ 2. routes/payments.js
+// ✅ backend/routes/payments.js
 
 import express from 'express';
 import PendingTx from '../models/PendingTx.js';
@@ -10,9 +10,6 @@ const router = express.Router();
 
 /**
  * @route POST /api/payments/verify-payment
- * @desc  Verify a Bitcoin transaction by txId and walletAddress
- *        - If unconfirmed, queue it for polling and store in PendingTx
- *        - If confirmed, store in AgentPayment and delete PendingTx
  */
 router.post('/verify-payment', async (req, res) => {
   const { txId, walletAddress } = req.body;
@@ -29,7 +26,7 @@ router.post('/verify-payment', async (req, res) => {
         { upsert: true }
       );
 
-      await pollPendingPayments(txId); // trigger polling for this specific tx
+      await pollPendingPayments(txId);
       return res.json({ pending: true, message: 'Waiting for confirmation' });
     }
 
@@ -41,15 +38,52 @@ router.post('/verify-payment', async (req, res) => {
       amountSats: details.amount,
       type: details.type,
       validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      listingCount: details.listingCount || 1
+      listingCount: details.listingCount || 1,
+      confirmed: true,
     });
 
-    await PendingTx.deleteOne({ txId }); // cleanup after confirmation
+    await PendingTx.deleteOne({ txId });
 
     return res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Verification failed' });
+  }
+});
+
+/**
+ * @route GET /api/payments/status
+ * @desc  Check subscription status by walletAddress or email
+ */
+router.get('/status', async (req, res) => {
+  const { walletAddress, email } = req.query;
+
+  if (!walletAddress && !email) {
+    return res.status(400).json({ error: 'walletAddress or email is required' });
+  }
+
+  try {
+    const query = walletAddress ? { walletAddress } : { email };
+    const payment = await AgentPayment.findOne({
+      ...query,
+      confirmed: true,
+    }).sort({ validUntil: -1 });
+
+    if (!payment) {
+      return res.json({ active: false });
+    }
+
+    const now = new Date();
+    const active = payment.validUntil > now;
+    return res.json({
+      active,
+      type: payment.type,
+      validUntil: payment.validUntil,
+      listingCount: payment.listingCount,
+    });
+  } catch (err) {
+    console.error('❌ Error checking subscription status:', err);
+    res.status(500).json({ error: 'Failed to check subscription status' });
   }
 });
 

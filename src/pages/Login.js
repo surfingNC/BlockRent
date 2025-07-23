@@ -51,6 +51,7 @@ function Login() {
       if (res.ok) {
         sessionStorage.setItem('token', data.token);
         sessionStorage.setItem('username', data.username);
+        sessionStorage.setItem('email', data.email); //added for promo code verification
         sessionStorage.setItem('isAuthenticated', 'true');
         navigate('/dashboard', { state: { username: data.username } });
       } else {
