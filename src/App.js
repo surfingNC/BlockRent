@@ -7,7 +7,7 @@ import './styles/index.css';
 import VerifyEmail from './pages/VerifyEmail.js';
 import ListingForm from './pages/ListingForm.jsx';
 import Listings from './pages/Listings.jsx';
-import Subscribe from './pages/Subscribe.jsx'; // ✅ Add this line
+import Subscribe from './pages/Subscribe.jsx'; 
 
 function App() {
   return (
@@ -19,7 +19,7 @@ function App() {
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/list-your-home" element={<ListingForm />} />
       <Route path="/listings" element={<Listings />} />
-      <Route path="/subscribe" element={<Subscribe />} /> {/* ✅ Add this line */}
+      <Route path="/subscribe" element={<Subscribe />} /> 
     </Routes>
   );
 }

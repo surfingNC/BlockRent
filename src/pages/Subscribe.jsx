@@ -6,12 +6,32 @@ import DashboardHeader from '../components/Header';
 import '../styles/index.css';
 
 const SUBSCRIPTIONS = [
-  { type: 'basic', label: 'Basic', sats: 15000, duration: '90 days', listings: 1, usd: 5 },
-  { type: 'pro', label: 'Pro', sats: 50000, duration: '30 days', listings: 5, usd: 15 },
-  { type: 'unlimited', label: 'Unlimited', sats: 150000, duration: '30 days', listings: 'Unlimited', usd: 45 },
+  { type: 'basic', label: 'Basic', sats: 15000, duration: '90 days', listings: 1 },
+  { type: 'pro', label: 'Pro', sats: 50000, duration: '30 days', listings: 5 },
+  { type: 'unlimited', label: 'Unlimited', sats: 150000, duration: '30 days', listings: 'Unlimited' },
 ];
 
 const BTC_RECEIVE_ADDRESS = process.env.REACT_APP_BTC_RECEIVE_ADDRESS;
+
+const Spinner = () => (
+  <div className="spinner" style={{ margin: '1rem auto' }}>
+    <div style={{
+      border: '4px solid #f3f3f3',
+      borderTop: '4px solid #2563eb',
+      borderRadius: '50%',
+      width: '28px',
+      height: '28px',
+      animation: 'spin 1s linear infinite',
+      margin: '0 auto'
+    }} />
+    <style>{`
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+    `}</style>
+  </div>
+);
 
 const Subscribe = () => {
   const navigate = useNavigate();
@@ -23,6 +43,35 @@ const Subscribe = () => {
   const [existingSub, setExistingSub] = useState(null);
   const [listening, setListening] = useState(false);
   const [countdown, setCountdown] = useState('');
+  const [btcPrice, setBtcPrice] = useState(null);
+
+  useEffect(() => {
+    const fetchCachedPrice = async () => {
+      const cached = localStorage.getItem('btc_price_cached');
+      const timestamp = localStorage.getItem('btc_price_cached_at');
+      const now = Date.now();
+      const tenMinutes = 10 * 60 * 1000;
+
+      if (cached && timestamp && now - parseInt(timestamp, 10) < tenMinutes) {
+        setBtcPrice(parseFloat(cached));
+      } else {
+        try {
+          const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+          const data = await res.json();
+          const price = data?.bitcoin?.usd;
+          if (price) {
+            setBtcPrice(price);
+            localStorage.setItem('btc_price_cached', price.toString());
+            localStorage.setItem('btc_price_cached_at', now.toString());
+          }
+        } catch (err) {
+          console.error('Failed to fetch BTC price:', err);
+        }
+      }
+    };
+
+    fetchCachedPrice();
+  }, []);
 
   useEffect(() => {
     if (!walletAddress) return;
@@ -96,6 +145,14 @@ const Subscribe = () => {
     return () => ws && ws.close();
   }, [selected]);
 
+  useEffect(() => {
+    if (!listening) return;
+    const timeout = setTimeout(() => {
+      setListening(false);
+    }, 3 * 60 * 1000);
+    return () => clearTimeout(timeout);
+  }, [listening]);
+
   const handleVerify = async (overrideTxId = null) => {
     const finalTxId = overrideTxId || txId;
     if (!finalTxId) return;
@@ -122,6 +179,12 @@ const Subscribe = () => {
       setStatus({ error: 'Verification failed' });
     }
     setLoading(false);
+  };
+
+  const formatUsd = (sats) => {
+    if (!btcPrice) return '(~$...)';
+    const usd = (sats / 100000000) * btcPrice;
+    return `(~$${usd.toFixed(2)})`;
   };
 
   return (
@@ -160,7 +223,10 @@ const Subscribe = () => {
                 <span style={{ position: 'absolute', top: '0.5rem', right: '0.75rem', color: 'green', fontSize: '1.25rem' }}>✔</span>
               )}
               <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>{plan.label}</h3>
-              <p>{plan.sats} sats (~${plan.usd} USD)</p>
+              <p>
+                {plan.sats.toLocaleString('en-US')} sats{' '}
+                <span style={{ color: '#666' }}>{formatUsd(plan.sats)}</span>
+              </p>
               <p>{plan.duration}</p>
               <p>{plan.listings} listings</p>
             </div>
@@ -169,10 +235,13 @@ const Subscribe = () => {
 
         {selected && (
           <div style={{ textAlign: 'center' }}>
-            <p className="mb-2">Send <strong>{selected.sats} sats</strong> to:</p>
+            <p className="mb-2">
+              Send <strong>{selected.sats.toLocaleString('en-US')} sats</strong> to:
+            </p>
             <code style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', background: '#f1f1f1', padding: '0.5rem', borderRadius: '0.5rem' }}>
               {BTC_RECEIVE_ADDRESS}
             </code>
+
             <div style={{ marginBottom: '1rem' }}>
               <QRCodeCanvas
                 value={`bitcoin:${BTC_RECEIVE_ADDRESS}?amount=${selected.sats / 100000000}`}
@@ -180,25 +249,43 @@ const Subscribe = () => {
               />
             </div>
 
-            {listening && (
-              <p style={{ fontSize: '0.9rem', color: '#2563eb' }}>Listening for incoming payment... (auto-verifies on confirmation)</p>
+            {listening ? (
+              <div>
+                <Spinner />
+                <p style={{ fontSize: '0.9rem', color: '#2563eb' }}>
+                  Listening for incoming payment... (auto-verifies on confirmation)
+                </p>
+              </div>
+            ) : (
+              <div style={{ marginTop: '1rem' }}>
+                <p style={{ fontSize: '0.9rem', color: '#665' }}>
+                  Didn't detect your payment? You can manually verify it here:
+                </p>
+                <input
+                  type="text"
+                  value={txId}
+                  onChange={(e) => setTxId(e.target.value)}
+                  placeholder="Paste Transaction ID (txid)"
+                  style={{ border: '1px solid #ccc', padding: '0.5rem', borderRadius: '0.5rem', width: '250px' }}
+                />
+                <br />
+                <button
+                  onClick={() => handleVerify()}
+                  disabled={!txId || loading}
+                  style={{
+                    marginTop: '0.75rem',
+                    padding: '0.5rem 1.25rem',
+                    backgroundColor: '#2563eb',
+                    color: 'white',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {loading ? 'Verifying...' : 'Verify Manually'}
+                </button>
+              </div>
             )}
-
-            <input
-              type="text"
-              value={txId}
-              onChange={(e) => setTxId(e.target.value)}
-              placeholder="Paste Transaction ID (txid)"
-              style={{ border: '1px solid #ccc', padding: '0.5rem', borderRadius: '0.5rem', width: '250px' }}
-            />
-            <br />
-            <button
-              onClick={() => handleVerify()}
-              disabled={!txId || loading}
-              style={{ marginTop: '0.75rem', padding: '0.5rem 1.25rem', backgroundColor: '#2563eb', color: 'white', borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }}
-            >
-              {loading ? 'Verifying...' : 'Verify Payment'}
-            </button>
           </div>
         )}
 

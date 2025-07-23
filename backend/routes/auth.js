@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Verification from '../models/Verification.js';
-import sendVerificationEmail from '../utils/sendEmail.js';
+import { sendVerificationEmail } from '../utils/sendEmail.js';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';

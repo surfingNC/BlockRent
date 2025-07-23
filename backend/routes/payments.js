@@ -1,78 +1,55 @@
+// ✅ 2. routes/payments.js
+
 import express from 'express';
-import axios from 'axios';
+import PendingTx from '../models/PendingTx.js';
 import AgentPayment from '../models/AgentPayment.js';
+import { checkTxConfirmed, getTxDetails } from '../utils/checkTxConfirmed.js';
+import { pollPendingPayments } from '../utils/pollPendingPayments.js';
 
 const router = express.Router();
-const RECEIVING_ADDRESS = process.env.BTC_RECEIVE_ADDRESS;
 
-// Subscription pricing (in sats)
-const PRICING = {
-  unlimited: { sats: 150000, durationDays: 30 },
-  pro: { sats: 50000, durationDays: 30, listings: 5 },
-  basic: { sats: 15000, durationDays: 90, listings: 1 },
-};
-
+/**
+ * @route POST /api/payments/verify-payment
+ * @desc  Verify a Bitcoin transaction by txId and walletAddress
+ *        - If unconfirmed, queue it for polling and store in PendingTx
+ *        - If confirmed, store in AgentPayment and delete PendingTx
+ */
 router.post('/verify-payment', async (req, res) => {
   const { txId, walletAddress } = req.body;
-
-  if (!txId || !walletAddress) {
+  if (!txId || !walletAddress)
     return res.status(400).json({ error: 'Missing txId or walletAddress' });
-  }
 
   try {
-    // Query mempool.space API
-    const txRes = await axios.get(`https://mempool.space/api/tx/${txId}`);
-    const { vout, status } = txRes.data;
+    const confirmed = await checkTxConfirmed(txId);
 
-    if (!status.confirmed) {
-      return res.status(400).json({ error: 'Transaction not confirmed yet' });
+    if (!confirmed) {
+      await PendingTx.updateOne(
+        { txId },
+        { txId, walletAddress, amountSats: 0, type: 'basic' },
+        { upsert: true }
+      );
+
+      await pollPendingPayments(txId); // trigger polling for this specific tx
+      return res.json({ pending: true, message: 'Waiting for confirmation' });
     }
 
-    // Look for payment to our receiving address
-    const output = vout.find(o => o.scriptpubkey_address === RECEIVING_ADDRESS);
-    if (!output) {
-      return res.status(400).json({ error: 'Transaction not sent to correct address' });
-    }
+    const details = await getTxDetails(txId);
 
-    const amount = output.value;
-    let type = null, validUntil = null, listingCount = null;
-
-    if (amount >= PRICING.unlimited.sats) {
-      type = 'unlimited';
-      validUntil = new Date(Date.now() + PRICING.unlimited.durationDays * 86400 * 1000);
-    } else if (amount >= PRICING.pro.sats) {
-      type = 'pro';
-      listingCount = PRICING.pro.listings;
-      validUntil = new Date(Date.now() + PRICING.pro.durationDays * 86400 * 1000);
-    } else if (amount >= PRICING.basic.sats) {
-      type = 'basic';
-      listingCount = PRICING.basic.listings;
-      validUntil = new Date(Date.now() + PRICING.basic.durationDays * 86400 * 1000);
-    } else {
-      return res.status(400).json({ error: 'Insufficient payment amount' });
-    }
-
-    const payment = new AgentPayment({
+    await AgentPayment.create({
       walletAddress,
       txId,
-      amountSats: amount,
-      type,
-      listingCount,
-      validUntil,
+      amountSats: details.amount,
+      type: details.type,
+      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      listingCount: details.listingCount || 1
     });
 
-    await payment.save();
+    await PendingTx.deleteOne({ txId }); // cleanup after confirmation
 
-    return res.json({
-      success: true,
-      type,
-      validUntil,
-      listingCount: listingCount ?? '∞',
-    });
-
+    return res.json({ success: true });
   } catch (err) {
-    console.error('❌ Payment verification error:', err.message);
-    return res.status(500).json({ error: 'Verification failed' });
+    console.error(err);
+    res.status(500).json({ error: 'Verification failed' });
   }
 });
 

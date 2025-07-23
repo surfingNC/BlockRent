@@ -9,6 +9,9 @@ const AgentPaymentSchema = new mongoose.Schema({
   validUntil: { type: Date, required: true },
   listingCount: { type: Number }, // used for pro tier
   timestamp: { type: Date, default: Date.now },
+
+  confirmed: { type: Boolean, default: false },
+  pendingCheck: { type: Boolean, default: false },
 });
 
 const AgentPayment = mongoose.model('AgentPayment', AgentPaymentSchema);

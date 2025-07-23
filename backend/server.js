@@ -26,6 +26,7 @@ import paymentRoutes from './routes/payments.js';
 import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 
+import { pollPendingPayments } from './utils/pollPendingPayments.js';
 
 const app = express();
 
@@ -55,7 +56,6 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/profile', profileRoutes);
 
-
 mongoose
   .connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 5000,
@@ -64,7 +64,15 @@ mongoose
   .then(() => {
     console.log('✅ MongoDB connected successfully');
     const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+
+      // ⏰ Trigger polling every 5 minutes
+      setInterval(() => {
+        console.log('⏰ Running scheduled poll for pending Bitcoin payments...');
+        pollPendingPayments();
+      }, 5 * 60 * 1000);
+    });
   })
   .catch((err) => {
     console.error('❌ MongoDB connection error:');
