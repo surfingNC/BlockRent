@@ -1,5 +1,3 @@
-// ✅ 3. utils/pollPendingPayments.js
-
 import dotenv from 'dotenv';
 dotenv.config({ path: './backend/.env' });
 
@@ -7,6 +5,9 @@ import fetch from 'node-fetch';
 import AgentPayment from '../models/AgentPayment.js';
 import PendingTx from '../models/PendingTx.js';
 import { sendSubscriptionConfirmationEmail } from './sendEmail.js';
+import { determineSubscription } from './subscriptionTiers.js';
+
+const BTC_RECEIVE_ADDRESS = process.env.BTC_RECEIVE_ADDRESS;
 
 /**
  * Polls unconfirmed transactions from PendingTx or one specific txId.
@@ -36,29 +37,35 @@ export async function pollPendingPayments(specificTxId = null) {
         const confirmed = data?.status?.confirmed;
         const outputs = data?.vout || [];
 
-        const match = outputs.find(o => o.scriptpubkey_address === process.env.BTC_RECEIVE_ADDRESS);
+        const match = outputs.find(o => o.scriptpubkey_address === BTC_RECEIVE_ADDRESS);
         const amountSats = match?.value || 0;
 
-        if (confirmed && match) {
-          // Save to AgentPayment
+        const sub = determineSubscription(amountSats);
+
+        if (confirmed && match && sub) {
           await AgentPayment.create({
             walletAddress: tx.walletAddress,
+            email: tx.email || null,
             txId: tx.txId,
             amountSats,
-            type: tx.type || 'basic',
-            validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            listingCount: tx.type === 'pro' ? 5 : tx.type === 'unlimited' ? Infinity : 1
+            type: sub.type,
+            validUntil: new Date(Date.now() + sub.durationDays * 24 * 60 * 60 * 1000),
+            listingCount: sub.listingCount,
+            confirmed: true,
           });
 
-          // Cleanup
           await PendingTx.deleteOne({ txId: tx.txId });
 
-          // Notify user
-          await sendSubscriptionConfirmationEmail(tx.walletAddress, tx.type || 'basic');
+          if (tx.email) {
+            await sendSubscriptionConfirmationEmail(tx.email, sub.type);
+            console.log(`📧 Email sent to ${tx.email}`);
+          } else {
+            console.log(`ℹ️ No email provided — skipping notification`);
+          }
 
           console.log(`✅ Confirmed & recorded tx: ${tx.txId} (${tx.walletAddress})`);
         } else {
-          console.log(`⏳ Still unconfirmed or no payment match for tx: ${tx.txId}`);
+          console.log(`⏳ Still unconfirmed or invalid sats for tx: ${tx.txId}`);
         }
       } catch (err) {
         console.error(`❌ Error checking ${tx.txId}:`, err.message);

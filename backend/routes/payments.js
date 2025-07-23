@@ -1,10 +1,9 @@
-// ✅ backend/routes/payments.js
-
 import express from 'express';
 import PendingTx from '../models/PendingTx.js';
 import AgentPayment from '../models/AgentPayment.js';
 import { checkTxConfirmed, getTxDetails } from '../utils/checkTxConfirmed.js';
 import { pollPendingPayments } from '../utils/pollPendingPayments.js';
+import { determineSubscription, SUBSCRIPTIONS } from '../utils/subscriptionTiers.js';
 
 const router = express.Router();
 
@@ -12,9 +11,11 @@ const router = express.Router();
  * @route POST /api/payments/verify-payment
  */
 router.post('/verify-payment', async (req, res) => {
-  const { txId, walletAddress } = req.body;
-  if (!txId || !walletAddress)
+  const { txId, walletAddress, email } = req.body;
+
+  if (!txId || !walletAddress) {
     return res.status(400).json({ error: 'Missing txId or walletAddress' });
+  }
 
   try {
     const confirmed = await checkTxConfirmed(txId);
@@ -22,7 +23,13 @@ router.post('/verify-payment', async (req, res) => {
     if (!confirmed) {
       await PendingTx.updateOne(
         { txId },
-        { txId, walletAddress, amountSats: 0, type: 'basic' },
+        {
+          txId,
+          walletAddress,
+          email,
+          amountSats: 0,
+          type: 'basic',
+        },
         { upsert: true }
       );
 
@@ -31,20 +38,27 @@ router.post('/verify-payment', async (req, res) => {
     }
 
     const details = await getTxDetails(txId);
+    const amountSats = details.amount;
+
+    const matched = determineSubscription(amountSats);
+    if (!matched) {
+      return res.status(400).json({ error: 'Insufficient amount sent for subscription' });
+    }
 
     await AgentPayment.create({
       walletAddress,
+      email: email || null,
       txId,
-      amountSats: details.amount,
-      type: details.type,
-      validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      listingCount: details.listingCount || 1,
+      amountSats,
+      type: matched.type,
+      validUntil: new Date(Date.now() + matched.durationDays * 24 * 60 * 60 * 1000),
+      listingCount: matched.listingCount,
       confirmed: true,
     });
 
     await PendingTx.deleteOne({ txId });
 
-    return res.json({ success: true });
+    return res.json({ success: true, tier: matched.type });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Verification failed' });
@@ -53,7 +67,6 @@ router.post('/verify-payment', async (req, res) => {
 
 /**
  * @route GET /api/payments/status
- * @desc  Check subscription status by walletAddress or email
  */
 router.get('/status', async (req, res) => {
   const { walletAddress, email } = req.query;
@@ -85,6 +98,22 @@ router.get('/status', async (req, res) => {
     console.error('❌ Error checking subscription status:', err);
     res.status(500).json({ error: 'Failed to check subscription status' });
   }
+});
+
+/**
+ * @route GET /api/payments/tiers
+ * @desc Return available subscription tiers for frontend
+ */
+router.get('/tiers', (req, res) => {
+  const formatted = SUBSCRIPTIONS.map(tier => ({
+    type: tier.type,
+    label: tier.label || tier.type.charAt(0).toUpperCase() + tier.type.slice(1),
+    sats: tier.sats,
+    duration: `${tier.durationDays} days`,
+    listings: tier.listingCount === Infinity ? 'Unlimited' : tier.listingCount,
+  }));
+
+  res.json(formatted);
 });
 
 export default router;

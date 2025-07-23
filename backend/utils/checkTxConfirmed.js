@@ -1,5 +1,3 @@
-// ✅ 4. utils/checkTxConfirmed.js
-
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
 dotenv.config({ path: './backend/.env' });
@@ -28,9 +26,9 @@ export async function checkTxConfirmed(txId) {
 }
 
 /**
- * Extracts amount paid to your BTC_RECEIVE_ADDRESS from a transaction.
+ * Extracts amount paid to your BTC_RECEIVE_ADDRESS and determines tier.
  * @param {string} txId
- * @returns {Promise<{ amount: number }>}
+ * @returns {Promise<{ amount: number, type: string, listingCount: number }>}
  */
 export async function getTxDetails(txId) {
   try {
@@ -45,9 +43,24 @@ export async function getTxDetails(txId) {
     const paidOutputs = outputs.filter(o => o.scriptpubkey_address === BTC_RECEIVE_ADDRESS);
     const totalSats = paidOutputs.reduce((sum, o) => sum + o.value, 0);
 
-    return { amount: totalSats };
+    // Tier classification based on sats
+    let type = 'invalid';
+    let listingCount = 0;
+
+    if (totalSats >= 150000) {
+      type = 'unlimited';
+      listingCount = Infinity;
+    } else if (totalSats >= 50000) {
+      type = 'pro';
+      listingCount = 5;
+    } else if (totalSats >= 15000) {
+      type = 'basic';
+      listingCount = 1;
+    }
+
+    return { amount: totalSats, type, listingCount };
   } catch (err) {
     console.error(`❌ Error extracting details for tx ${txId}:`, err.message);
-    return { amount: 0 };
+    return { amount: 0, type: 'invalid', listingCount: 0 };
   }
 }

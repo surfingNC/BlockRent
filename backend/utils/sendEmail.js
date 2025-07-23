@@ -1,13 +1,13 @@
-// backend/utils/sendEmail.js
 import dotenv from 'dotenv';
 dotenv.config({ path: './backend/.env' });
+
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendVerificationEmail(to, code) {
   try {
-    const response = await resend.emails.send({
+    await resend.emails.send({
       from: process.env.EMAIL_FROM,
       to,
       subject: 'BlockRent Email Verification Code',
@@ -21,13 +21,18 @@ export async function sendVerificationEmail(to, code) {
   }
 }
 
-export async function sendSubscriptionConfirmationEmail(walletAddress, type) {
+// ✅ FIXED: email instead of walletAddress
+export async function sendSubscriptionConfirmationEmail(email, type) {
   try {
-    const response = await resend.emails.send({
+    await resend.emails.send({
       from: process.env.EMAIL_FROM,
-      to: walletAddress,
+      to: email,
       subject: 'BlockRent Subscription Confirmed',
-      html: `<p>Your <strong>${type}</strong> subscription has been activated successfully!</p>`,
+      html: `
+        <p>🎉 Your <strong>${type}</strong> BlockRent subscription is now active!</p>
+        <p>You can now list properties and manage applications from your dashboard.</p>
+        <p>Visit: <a href="https://blockrent.app/dashboard">blockrent.app/dashboard</a></p>
+      `,
     });
 
     return true;

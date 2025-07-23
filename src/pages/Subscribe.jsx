@@ -5,11 +5,8 @@ import { useNavigate } from 'react-router-dom';
 import DashboardHeader from '../components/Header';
 import '../styles/index.css';
 
-const SUBSCRIPTIONS = [
-  { type: 'basic', label: 'Basic', sats: 15000, duration: '90 days', listings: 1 },
-  { type: 'pro', label: 'Pro', sats: 50000, duration: '30 days', listings: 5 },
-  { type: 'unlimited', label: 'Unlimited', sats: 150000, duration: '30 days', listings: 'Unlimited' },
-];
+//const [subscriptionTiers, setSubscriptionTiers] = useState([]);
+
 
 const BTC_RECEIVE_ADDRESS = process.env.REACT_APP_BTC_RECEIVE_ADDRESS;
 
@@ -136,8 +133,17 @@ const Subscribe = () => {
   const [listening, setListening] = useState(false);
   const [countdown, setCountdown] = useState('');
   const [btcPrice, setBtcPrice] = useState(null);
+  const [subscriptionTiers, setSubscriptionTiers] = useState([]);
+
+    useEffect(() => {
+      fetch('/api/payments/tiers')
+      .then(res => res.json())
+      .then(data => setSubscriptionTiers(data))
+      .catch(err => console.error('Failed to fetch tiers:', err));
+    }, []);
 
   useEffect(() => {
+    // should this go here?
     const fetchCachedPrice = async () => {
       const cached = localStorage.getItem('btc_price_cached');
       const timestamp = localStorage.getItem('btc_price_cached_at');
@@ -164,6 +170,7 @@ const Subscribe = () => {
 
     fetchCachedPrice();
   }, []);
+
 
   useEffect(() => {
     if (!walletAddress) return;
@@ -299,7 +306,8 @@ const Subscribe = () => {
         )}
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', marginBottom: '2rem' }}>
-          {SUBSCRIPTIONS.map(plan => (
+          {subscriptionTiers.map(plan => (
+
             <div
               key={plan.type}
               onClick={() => setSelected(plan)}
@@ -317,13 +325,15 @@ const Subscribe = () => {
               {selected?.type === plan.type && (
                 <span style={{ position: 'absolute', top: '0.5rem', right: '0.75rem', color: 'green', fontSize: '1.25rem' }}>✔</span>
               )}
-              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>{plan.label}</h3>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                {plan.type.charAt(0).toUpperCase() + plan.type.slice(1)}
+              </h3>
               <p>
                 {plan.sats.toLocaleString('en-US')} sats{' '}
-                <span style={{ color: '#666' }}>{formatUsd(plan.sats)}</span>
+                <span style={{ color: '#665' }}>{formatUsd(plan.sats)}</span>
               </p>
-              <p>{plan.duration}</p>
-              <p>{plan.listings} listings</p>
+              <p>{plan.durationDays} days</p>
+              <p>{plan.listingCount === Infinity ? 'Unlimited' : plan.listingCount} listings</p>
             </div>
           ))}
         </div>
