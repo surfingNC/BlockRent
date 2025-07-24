@@ -13,8 +13,8 @@ const router = express.Router();
 router.post('/verify-payment', async (req, res) => {
   const { txId, walletAddress, email } = req.body;
 
-  if (!txId || !walletAddress) {
-    return res.status(400).json({ error: 'Missing txId or walletAddress' });
+  if (!txId) {
+    return res.status(400).json({ error: 'Missing txId' });
   }
 
   try {

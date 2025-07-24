@@ -1,5 +1,5 @@
 // src/pages/Subscribe.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useNavigate } from 'react-router-dom';
 import DashboardHeader from '../components/Header';
@@ -135,6 +135,47 @@ const Subscribe = () => {
   const [btcPrice, setBtcPrice] = useState(null);
   const [subscriptionTiers, setSubscriptionTiers] = useState([]);
 
+  //===============================================
+	const handleVerify = useCallback(async (overrideTxId = null) => {
+		const finalTxId = overrideTxId || txId;
+		if (!finalTxId) {
+			setStatus({ error: 'Missing txId.' });
+			return;
+		}
+
+		setLoading(true);
+		try {
+			const payload = { txId: finalTxId };
+			if (walletAddress) payload.walletAddress = walletAddress;
+
+			const res = await fetch('/api/payments/verify-payment', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload),
+			});
+
+			const data = await res.json();
+			setStatus(data);
+
+			if (data.success) {
+				await fetch('/api/notifications/subscription-confirmed', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ walletAddress: walletAddress || 'manual' }),
+				});
+
+				setTimeout(() => navigate('/dashboard'), 2000);
+			}
+		} catch (err) {
+			console.error('Verification failed:', err);
+			setStatus({ error: 'Verification failed' });
+		}
+		setLoading(false);
+	}, [txId, walletAddress, navigate]);
+
+
+  //==========================
+
     useEffect(() => {
       fetch('/api/payments/tiers')
       .then(res => res.json())
@@ -197,52 +238,54 @@ const Subscribe = () => {
       .catch(err => console.error('Error fetching subscription status:', err));
   }, [walletAddress]);
 
-  useEffect(() => {
-    if (!selected) return;
-    let ws;
-    let retryCount = 0;
-    const maxRetries = 5;
+useEffect(() => {
+  if (!selected) return;
+  let ws;
+  let retryCount = 0;
+  const maxRetries = 5;
 
-    const connectWebSocket = () => {
-      ws = new WebSocket('wss://mempool.space/api/v1/ws');
+  const connectWebSocket = () => {
+    ws = new WebSocket('wss://mempool.space/api/v1/ws');
 
-      ws.onopen = () => {
-        setListening(true);
-        ws.send(JSON.stringify({ action: 'want', data: [`addr:${BTC_RECEIVE_ADDRESS}`] }));
-      };
-
-      ws.onmessage = (event) => {
-        const msg = JSON.parse(event.data);
-        const txs = msg?.data?.transactions || [];
-        const match = txs.find(tx =>
-          tx.status?.confirmed === true &&
-          tx.vout?.some(o => o.scriptpubkey_address === BTC_RECEIVE_ADDRESS)
-        );
-        if (match) {
-          setTxId(match.txid);
-          handleVerify(match.txid);
-          ws.close();
-          setListening(false);
-        }
-      };
-
-      ws.onclose = () => {
-        setListening(false);
-        if (retryCount < maxRetries) {
-          retryCount++;
-          setTimeout(() => connectWebSocket(), 3000);
-        }
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err);
-        ws.close();
-      };
+    ws.onopen = () => {
+      setListening(true);
+      ws.send(JSON.stringify({ action: 'want', data: [`addr:${BTC_RECEIVE_ADDRESS}`] }));
     };
 
-    connectWebSocket();
-    return () => ws && ws.close();
-  }, [selected]);
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      const txs = msg?.data?.transactions || [];
+      const match = txs.find(tx =>
+        tx.vout?.some(o => o.scriptpubkey_address === BTC_RECEIVE_ADDRESS)
+      );
+      if (match) {
+        console.log('🟡 Incoming tx detected:', match.txid);
+        setTxId(match.txid);
+        handleVerify(match.txid);
+        ws.close();
+        setListening(false);
+      }
+    };
+
+    ws.onclose = () => {
+      setListening(false);
+      if (retryCount < maxRetries) {
+        retryCount++;
+        setTimeout(() => connectWebSocket(), 3000);
+      }
+    };
+
+    ws.onerror = (err) => {
+      console.error('WebSocket error:', err);
+      ws.close();
+    };
+  };
+
+  connectWebSocket();
+  return () => ws && ws.close();
+}, [selected, handleVerify]);
+
+
 
   useEffect(() => {
     if (!listening) return;
@@ -251,34 +294,9 @@ const Subscribe = () => {
     }, 3 * 60 * 1000);
     return () => clearTimeout(timeout);
   }, [listening]);
+// ========
 
-  const handleVerify = async (overrideTxId = null) => {
-    const finalTxId = overrideTxId || txId;
-    if (!finalTxId) return;
-
-    setLoading(true);
-    try {
-      const res = await fetch('/api/payments/verify-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ txId: finalTxId, walletAddress }),
-      });
-      const data = await res.json();
-      setStatus(data);
-      if (data.success) {
-        fetch('/api/notifications/subscription-confirmed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress }),
-        });
-        setTimeout(() => navigate('/dashboard'), 2000);
-      }
-    } catch (err) {
-      console.error('Verification failed:', err);
-      setStatus({ error: 'Verification failed' });
-    }
-    setLoading(false);
-  };
+//=========
 
   const formatUsd = (sats) => {
     if (!btcPrice) return '(~$...)';
@@ -339,60 +357,61 @@ const Subscribe = () => {
         </div>
 
         {selected && (
-          <div style={{ textAlign: 'center' }}>
-            <p className="mb-2">
-              Send <strong>{selected.sats.toLocaleString('en-US')} sats</strong> to:
-            </p>
-            <code style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', background: '#f1f1f1', padding: '0.5rem', borderRadius: '0.5rem' }}>
-              {BTC_RECEIVE_ADDRESS}
-            </code>
+            <div style={{ textAlign: 'center' }}>
+                <p className="mb-2">
+                    Send <strong>{selected.sats.toLocaleString('en-US')} sats</strong> to:
+                </p>
+                <code style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', background: '#f1f1f1', padding: '0.5rem', borderRadius: '0.5rem' }}>
+                    {BTC_RECEIVE_ADDRESS}
+                </code>
 
-            <div style={{ marginBottom: '1rem' }}>
-              <QRCodeCanvas
-                value={`bitcoin:${BTC_RECEIVE_ADDRESS}?amount=${selected.sats / 100000000}`}
-                size={160}
-              />
+                <div style={{ marginBottom: '1rem' }}>
+                    <QRCodeCanvas
+                        value={`bitcoin:${BTC_RECEIVE_ADDRESS}?amount=${selected.sats / 100000000}`}
+                        size={160}
+                    />
+                </div>
+
+                {listening && (
+                    <div>
+                        <Spinner />
+                        <p style={{ fontSize: '0.9rem', color: '#2563eb' }}>
+                            Listening for incoming payment... (auto-verifies on confirmation)
+                        </p>
+                    </div>
+                )}
+
+                <div style={{ marginTop: '1rem' }}>
+                    <p style={{ fontSize: '0.9rem', color: '#665' }}>
+                        Didn't detect your payment? You can manually verify it here:
+                    </p>
+                    <input
+                        type="text"
+                        value={txId}
+                        onChange={(e) => setTxId(e.target.value)}
+                        placeholder="Paste Transaction ID (txid)"
+                        style={{ border: '1px solid #ccc', padding: '0.5rem', borderRadius: '0.5rem', width: '250px' }}
+                    />
+                    <br />
+                    <button
+                        onClick={() => handleVerify()}
+                        disabled={!txId || loading}
+                        style={{
+                            marginTop: '0.75rem',
+                            padding: '0.5rem 1.25rem',
+                            backgroundColor: '#2563eb',
+                            color: 'white',
+                            borderRadius: '0.5rem',
+                            border: 'none',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        {loading ? 'Verifying...' : 'Verify Manually'}
+                    </button>
+                </div>
             </div>
-
-            {listening ? (
-              <div>
-                <Spinner />
-                <p style={{ fontSize: '0.9rem', color: '#2563eb' }}>
-                  Listening for incoming payment... (auto-verifies on confirmation)
-                </p>
-              </div>
-            ) : (
-              <div style={{ marginTop: '1rem' }}>
-                <p style={{ fontSize: '0.9rem', color: '#665' }}>
-                  Didn't detect your payment? You can manually verify it here:
-                </p>
-                <input
-                  type="text"
-                  value={txId}
-                  onChange={(e) => setTxId(e.target.value)}
-                  placeholder="Paste Transaction ID (txid)"
-                  style={{ border: '1px solid #ccc', padding: '0.5rem', borderRadius: '0.5rem', width: '250px' }}
-                />
-                <br />
-                <button
-                  onClick={() => handleVerify()}
-                  disabled={!txId || loading}
-                  style={{
-                    marginTop: '0.75rem',
-                    padding: '0.5rem 1.25rem',
-                    backgroundColor: '#2563eb',
-                    color: 'white',
-                    borderRadius: '0.5rem',
-                    border: 'none',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {loading ? 'Verifying...' : 'Verify Manually'}
-                </button>
-              </div>
-            )}
-          </div>
         )}
+
 
         {status && (
           <div style={{ textAlign: 'center', marginTop: '1rem' }}>
