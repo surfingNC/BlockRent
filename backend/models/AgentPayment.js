@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const AgentPaymentSchema = new mongoose.Schema({
   walletAddress: { type: String, required: false }, // optional for promo redemptions
-  email: { type: String, required: true },           // make sure email is included too
+  email: { type: String, required: false },           // make sure email is included too
   txId: { type: String, required: true, unique: true },
   amountSats: { type: Number, required: true },
   type: { type: String, enum: ['basic', 'pro', 'unlimited'], default: 'basic' },

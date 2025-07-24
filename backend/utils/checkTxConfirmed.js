@@ -1,8 +1,17 @@
+// utils/checkTxConfirmed.js
 import fetch from 'node-fetch';
 import dotenv from 'dotenv';
-dotenv.config({ path: './backend/.env' });
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Dynamically resolve the correct .env path
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') }); // <-- load ../.env properly
 
 const BTC_RECEIVE_ADDRESS = process.env.BTC_RECEIVE_ADDRESS;
+console.log('🚀 BTC_RECEIVE_ADDRESS:', BTC_RECEIVE_ADDRESS);
 
 /**
  * Checks whether a given Bitcoin transaction has been confirmed.
