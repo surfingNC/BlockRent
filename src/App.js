@@ -3,23 +3,55 @@ import { Routes, Route } from 'react-router-dom';
 import Login from './pages/Login.js';
 import Dashboard from './pages/Dashboard.jsx';
 import Register from './pages/Register.js';
-import './styles/index.css';
 import VerifyEmail from './pages/VerifyEmail.js';
 import ListingForm from './pages/ListingForm.jsx';
 import Listings from './pages/Listings.jsx';
-import Subscribe from './pages/Subscribe.jsx'; 
+import Subscribe from './pages/Subscribe.jsx';
+import ProtectedRoute from './components/ProtectedRoute.jsx';
+import './styles/index.css';
 
 function App() {
   return (
     <Routes>
+      {/* Public Routes */}
       <Route path="/" element={<Login />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
-      <Route path="/list-your-home" element={<ListingForm />} />
-      <Route path="/listings" element={<Listings />} />
-      <Route path="/subscribe" element={<Subscribe />} /> 
+
+      {/* Protected Routes */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/list-your-home"
+        element={
+          <ProtectedRoute>
+            <ListingForm />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/listings"
+        element={
+          <ProtectedRoute>
+            <Listings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/subscribe"
+        element={
+          <ProtectedRoute>
+            <Subscribe />
+          </ProtectedRoute>
+        }
+      />
     </Routes>
   );
 }

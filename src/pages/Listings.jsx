@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Header from '../components/Header.js';
+import DashboardHeader from '../components/DashboardHeader';
 
 function Listings() {
   const [filtered, setFiltered] = useState([]);
@@ -61,7 +61,7 @@ function Listings() {
       if (!accounts || accounts.length === 0) return alert('No UniSat accounts found.');
       const balance = await window.unisat.getBalance();
 
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
 
       const res = await fetch(`${API_URL}/api/listings/apply`, {
         method: 'POST',
@@ -91,7 +91,7 @@ function Listings() {
 
   return (
     <div>
-      <Header />
+      <DashboardHeader username={localStorage.getItem('username') || ''} />
       <div style={{ padding: '2rem' }}>
         <h2>Available Listings</h2>
 

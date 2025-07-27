@@ -1,63 +1,73 @@
 // src/pages/Dashboard.jsx
 import React, { useEffect, useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
-import Header from '../components/Header';
+import { useNavigate } from 'react-router-dom';
+import DashboardHeader from '../components/DashboardHeader';
 import '../styles/index.css';
+import { jwtDecode } from 'jwt-decode';
 
 function Dashboard() {
   const navigate = useNavigate();
-  const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(null);
 
-  useEffect(() => {
-    const token = sessionStorage.getItem('token');
-    const walletAddress = sessionStorage.getItem('walletAddress');
-    const email = sessionStorage.getItem('email');
+useEffect(() => {
+  const token = localStorage.getItem('token');
+  const email = localStorage.getItem('email');
 
-    if (!token) {
-      setAuthorized(false);
+  if (!token) {
+    console.warn('⛔ No token found in localStorage');
+    setLoading(false);
+    return;
+  }
+
+  // 🔍 DEBUG: See what's inside the token
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    console.log('🔍 Raw decoded payload:', payload);
+    console.log('🕒 Exp:', payload.exp, '| Now:', Math.floor(Date.now() / 1000));
+  } catch (err) {
+    console.error('❌ Manual decode failed:', err);
+  }
+
+  // ✅ Safe decode + validation
+  try {
+    const decoded = jwtDecode(token);
+    const now = Math.floor(Date.now() / 1000);
+    if (!decoded.exp || decoded.exp < now) {
+      console.warn('🔒 Token expired:', decoded);
+      localStorage.clear();
       setLoading(false);
       return;
     }
+  } catch (err) {
+    console.error('❌ Failed to decode token:', err);
+    localStorage.clear();
+    setLoading(false);
+    return;
+  }
 
-    fetch(`http://localhost:5000/api/protected/dashboard`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error();
-        return res.json();
+  // 🎟️ Check subscription
+  if (email) {
+    fetch(`/api/payments/status?email=${email}`)
+      .then((res) => res.json())
+      .then((data) => {
+        console.log('📦 Subscription:', data);
+        setSubscription(data);
       })
-      .then(() => {
-        setAuthorized(true);
-        setLoading(false);
-      })
-      .catch(() => {
-        sessionStorage.clear();
-        setAuthorized(false);
-        setLoading(false);
-      });
+      .catch((err) => console.error('⚠️ Subscription fetch failed:', err))
+      .finally(() => setLoading(false));
+  } else {
+    setLoading(false);
+  }
+}, []);
 
-    if (walletAddress || email) {
-      const queryParam = walletAddress
-        ? `walletAddress=${walletAddress}`
-        : `email=${email}`;
-
-      fetch(`/api/payments/status?${queryParam}`)
-        .then(res => res.json())
-        .then(data => setSubscription(data))
-        .catch(err => console.error('Failed to load subscription:', err));
-    }
-  }, []);
 
   const handleLogout = () => {
-    sessionStorage.clear();
+    localStorage.clear();
     navigate('/login');
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (!authorized) return <Navigate to="/login" replace />;
+  if (loading) return <div>Loading Dashboard...</div>;
 
   return (
     <div
@@ -71,8 +81,7 @@ function Dashboard() {
         width: '100%',
       }}
     >
-      <Header />
-
+      <DashboardHeader username={localStorage.getItem('username') || ''} />
       <div
         style={{
           display: 'flex',
@@ -110,7 +119,7 @@ function Dashboard() {
             textAlign: 'center'
           }}
         >
-          {subscription && subscription.active ? (
+          {subscription?.status === 'active' ? (
             <div style={{
               fontSize: '14px',
               backgroundColor: '#dcfce7',
@@ -120,12 +129,10 @@ function Dashboard() {
               marginBottom: '16px',
               display: 'inline-block'
             }}>
-              ✅ {subscription.type.toUpperCase()} plan &nbsp;
+              ✅ {subscription.type.toUpperCase()} plan —{' '}
               {subscription.type === 'unlimited'
                 ? `valid until ${new Date(subscription.validUntil).toLocaleDateString()}`
-                : subscription.listingCount > 0
-                  ? `${subscription.listingCount} listings remaining`
-                  : `expired`}
+                : `${subscription.listingCount} listings remaining`}
             </div>
           ) : (
             <div style={{

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import Header from '../components/Header.js';
+import DashboardHeader from '../components/DashboardHeader';
 
 function ListingForm() {
   const [formData, setFormData] = useState({
@@ -58,7 +58,7 @@ function ListingForm() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionStorage.getItem('token')}`,
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({
           ...formData,
@@ -90,7 +90,7 @@ function ListingForm() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header />
+      <DashboardHeader username={localStorage.getItem('username') || ''} />
       <div className="flex justify-center items-center py-10">
         <form
           onSubmit={handleSubmit}

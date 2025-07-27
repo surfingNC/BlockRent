@@ -30,21 +30,27 @@ router.post('/verify-payment', async (req, res) => {
     }
 
     if (!confirmed) {
-      const pendingResult = await PendingTx.findOneAndUpdate(
-        { txId },
-        {
-          txId,
-          walletAddress: walletAddress || null,
-          email,
-          amountSats,
-          type: subTier.type,
-        },
-        { upsert: true, new: true }
-      );
+      try {
+        const pendingResult = await PendingTx.findOneAndUpdate(
+          { txId },
+          {
+            txId,
+            walletAddress: walletAddress || 'unknown',
+            email: email || 'unknown@blockrent.app',
+            amountSats,
+            type: subTier.type,
+          },
+          { upsert: true, new: true }
+        );
 
-      console.log(
-        `🕓 Tx ${txId} is unconfirmed — ${pendingResult ? 'updated' : 'added'} in PendingTx`
-      );
+        console.log(
+          `🕓 Tx ${txId} is unconfirmed — ${pendingResult ? 'updated' : 'added'} in PendingTx`
+        );
+      } catch (dbErr) {
+        console.error('❌ Failed to save PendingTx:', dbErr);
+        return res.status(500).json({ error: 'Database error saving pending transaction' });
+      }
+
       return res.status(202).json({
         pending: true,
         message: 'Transaction detected, waiting for confirmation.',
@@ -54,8 +60,8 @@ router.post('/verify-payment', async (req, res) => {
     const paymentResult = await AgentPayment.findOneAndUpdate(
       { txId },
       {
-        walletAddress: walletAddress || null,
-        email,
+        walletAddress: walletAddress || 'unknown',
+        email: email || 'unknown@blockrent.app',
         txId,
         amountSats,
         type: subTier.type,
@@ -72,11 +78,13 @@ router.post('/verify-payment', async (req, res) => {
 
     await sendConfirmationEmail(email, subTier);
     return res.json({ success: true, tier: subTier.type });
+
   } catch (err) {
     console.error('❌ Verification failed:', err);
     return res.status(500).json({ error: 'Server error while verifying transaction' });
   }
 });
+
 
 /**
  * @route GET /api/payments/status
@@ -93,12 +101,20 @@ router.get('/status', async (req, res) => {
     const query = walletAddress ? { walletAddress } : { email };
 
     // 1. Check confirmed payment
-    const payment = await AgentPayment.findOne({ ...query, confirmed: true })
-      .sort({ validUntil: -1 });
+    const payment = await AgentPayment.findOne({ ...query, confirmed: true }).sort({ validUntil: -1 });
 
     if (payment) {
       const now = new Date();
       const active = payment.validUntil > now;
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`🔍 Confirmed payment for ${email || walletAddress}:`, {
+          active,
+          type: payment.type,
+          validUntil: payment.validUntil,
+        });
+      }
+
       return res.json({
         status: active ? 'active' : 'expired',
         type: payment.type,
@@ -109,7 +125,12 @@ router.get('/status', async (req, res) => {
 
     // 2. Check pending transaction
     const pending = await PendingTx.findOne(query).sort({ _id: -1 });
+
     if (pending) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`⏳ Pending tx for ${email || walletAddress}:`, pending.txId);
+      }
+
       return res.json({
         status: 'pending',
         type: pending.type,
@@ -118,7 +139,7 @@ router.get('/status', async (req, res) => {
       });
     }
 
-    // 3. Default to inactive
+    // 3. Default to inactive (don’t log)
     return res.json({ status: 'inactive' });
   } catch (err) {
     console.error('❌ Error checking subscription status:', err);
@@ -126,12 +147,14 @@ router.get('/status', async (req, res) => {
   }
 });
 
+
+
 /**
  * @route GET /api/payments/tiers
  * @desc Return available subscription tiers for frontend
  */
 router.get('/tiers', (req, res) => {
-  console.log("📦 Sending subscription tiers:", SUBSCRIPTIONS);
+  //console.log("📦 Sending subscription tiers:", SUBSCRIPTIONS);
 
   const formatted = SUBSCRIPTIONS.map((tier) => ({
     type: tier.type,

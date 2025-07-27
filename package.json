@@ -2,7 +2,6 @@
   "name": "project-1",
   "version": "0.1.0",
   "type": "module",
-  "homepage": "https://gitname.github.io/react-gh-pages",
   "private": true,
   "proxy": "http://localhost:5000",
   "dependencies": {
@@ -28,6 +27,7 @@
     "elliptic": "^6.6.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
+    "jwt-decode": "^4.0.0",
     "mongodb": "^6.17.0",
     "mongoose": "^8.6.4",
     "nodemailer": "^7.0.3",

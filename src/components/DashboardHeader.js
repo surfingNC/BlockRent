@@ -1,13 +1,39 @@
 // src/components/DashboardHeader.js
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 
 function DashboardHeader({ username }) {
+  const navigate = useNavigate();
+
+  const handleLogoClick = () => {
+    const token = localStorage.getItem('token');
+    console.log('🪪 Token at logo click:', token);
+
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        const now = Math.floor(Date.now() / 1000);
+        console.log('⏱️ Now:', now, '| Token Exp:', decoded.exp);
+
+        if (decoded.exp && decoded.exp > now) {
+          navigate('/dashboard');
+          return;
+        } else {
+          console.warn('⚠️ Token expired.');
+        }
+      } catch (err) {
+        console.error('❌ Failed to decode token:', err);
+      }
+    }
+
+    navigate('/login');
+  };
+
   return (
     <header
       style={{
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
         padding: '16px',
         backgroundColor: '#fff',
@@ -15,22 +41,19 @@ function DashboardHeader({ username }) {
         overflow: 'hidden',
       }}
     >
-      <Link to="/">
-        <img
-          src={process.env.PUBLIC_URL + '/BlockRentLogo2.png'}
-          alt="BlockRent Logo"
-          style={{
-            height: '40px',
-            width: 'auto',
-            transform: 'scale(3.5)',
-            transformOrigin: 'left center',
-            display: 'block',
-          }}
-        />
-      </Link>
-      <div style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '2.25rem' }}>
-         {username}
-      </div>
+      <img
+        src={process.env.PUBLIC_URL + '/BlockRentLogo2.png'}
+        alt="BlockRent Logo"
+        onClick={handleLogoClick}
+        style={{
+          height: '40px',
+          width: 'auto',
+          transform: 'scale(3.5)',
+          transformOrigin: 'left center',
+          display: 'block',
+          cursor: 'pointer',
+        }}
+      />
     </header>
   );
 }

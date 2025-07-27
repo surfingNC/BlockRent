@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useNavigate } from 'react-router-dom';
-import DashboardHeader from '../components/Header';
+import DashboardHeader from '../components/DashboardHeader';
 import '../styles/index.css';
 
 //const [subscriptionTiers, setSubscriptionTiers] = useState([]);
@@ -318,7 +318,7 @@ useEffect(() => {
   	if (existingSub?.active && existingSub?.type === 'unlimited') {
 		return (
 			<div>
-				<DashboardHeader />
+				<DashboardHeader username={localStorage.getItem('username') || ''} />
 				<div style={{ maxWidth: '720px', margin: '2rem auto', padding: '2rem', textAlign: 'center' }}>
 					<h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'green' }}>✅ You already have an active Unlimited plan.</h2>
 					<p style={{ color: '#444', marginTop: '1rem' }}>
@@ -333,7 +333,7 @@ useEffect(() => {
 
   return (
     <div>
-      <DashboardHeader />
+      <DashboardHeader username={localStorage.getItem('username') || ''} />
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem' }}>
         <h2 style={{ fontSize: '2rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '1rem' }}>Choose a Subscription Plan</h2>
 

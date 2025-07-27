@@ -12,6 +12,9 @@ dotenv.config();
 const MONGO_URI = process.env.MONGO_URI;
 const BTC_RECEIVE_ADDRESS = process.env.BTC_RECEIVE_ADDRESS;
 
+const VERBOSE = false;
+const debug = (...args) => VERBOSE && console.log(...args);
+
 async function connectToDB() {
   try {
     await mongoose.connect(MONGO_URI);
@@ -31,7 +34,7 @@ async function fetchIncomingTxs() {
     return;
   }
 
-  console.log(`🔍 Checking for new transactions to: ${BTC_RECEIVE_ADDRESS}`);
+  debug(`🔍 Checking for new transactions to: ${BTC_RECEIVE_ADDRESS}`);
 
   try {
     const { data } = await axios.get(
@@ -49,22 +52,20 @@ async function fetchIncomingTxs() {
       const subTier = determineSubscription(amountSats);
 
       if (!subTier) {
-        console.log(`⚠️ Tx ${txId} doesn't match any subscription tier`);
+        debug(`⚠️ Tx ${txId} doesn't match any subscription tier`);
         continue;
       }
 
       const confirmed = tx.status?.confirmed || false;
 
-      // Check if tx exists in PendingTx for an associated email
       const pendingRecord = await PendingTx.findOne({ txId });
       const email = pendingRecord?.email || 'unknown@blockrent.app';
       const walletAddress = pendingRecord?.walletAddress || null;
 
       if (confirmed) {
-        // Skip if already confirmed
         const existingPayment = await AgentPayment.findOne({ txId, confirmed: true });
         if (existingPayment) {
-          console.log(`⏩ Tx ${txId} already confirmed, skipping.`);
+          debug(`⏩ Tx ${txId} already confirmed, skipping.`);
           continue;
         }
 
@@ -87,7 +88,7 @@ async function fetchIncomingTxs() {
           await PendingTx.deleteOne({ txId });
         }
 
-        console.log(`✅ Confirmed tx ${txId} recorded in AgentPayment`);
+        debug(`✅ Confirmed tx ${txId} recorded in AgentPayment`);
       } else {
         await PendingTx.findOneAndUpdate(
           { txId },
@@ -100,7 +101,7 @@ async function fetchIncomingTxs() {
           },
           { upsert: true, new: true }
         );
-        console.log(`🕓 Tx ${txId} is unconfirmed — saved to PendingTx`);
+        debug(`🕓 Tx ${txId} is unconfirmed — saved to PendingTx`);
       }
     }
   } catch (error) {
@@ -112,11 +113,11 @@ async function fetchIncomingTxs() {
  * STEP 2: Poll PendingTx for confirmations
  */
 async function checkPendingPayments() {
-  console.log('⏰ Checking pending transactions for confirmation...');
+  debug('⏰ Checking pending transactions for confirmation...');
   const pendingTxs = await PendingTx.find({});
 
   if (pendingTxs.length === 0) {
-    console.log('🔍 No pending payments to check.');
+    debug('🔍 No pending payments to check.');
     return;
   }
 
@@ -131,8 +132,8 @@ async function checkPendingPayments() {
       if (confirmed) {
         const existingPayment = await AgentPayment.findOne({ txId, confirmed: true });
         if (existingPayment) {
-          console.log(`⏩ Tx ${txId} already confirmed, skipping.`);
-          await PendingTx.deleteOne({ txId }); // clean it up if exists in pending
+          debug(`⏩ Tx ${txId} already confirmed, skipping.`);
+          await PendingTx.deleteOne({ txId });
           continue;
         }
 
@@ -160,9 +161,9 @@ async function checkPendingPayments() {
         await sendConfirmationEmail(email, tier);
         await PendingTx.deleteOne({ txId });
 
-        console.log(`✅ Confirmed tx ${txId} moved to AgentPayment`);
+        debug(`✅ Confirmed tx ${txId} moved to AgentPayment`);
       } else {
-        console.log(`⏳ Still pending: ${txId}`);
+        debug(`⏳ Still pending: ${txId}`);
       }
     } catch (err) {
       console.error(`❌ Error polling tx ${txId}:`, err.response?.data || err.message);

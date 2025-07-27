@@ -1,4 +1,3 @@
-// src/pages/Login.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '../components/Header.js';
@@ -11,19 +10,14 @@ function Login() {
   const [errorMsg, setErrorMsg] = useState(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const token = sessionStorage.getItem('token');
-    if (token) {
-      navigate('/dashboard');
-    }
-  }, [navigate]);
-
+  // Fetch BTC price
   useEffect(() => {
     const fetchBitcoinPrice = async () => {
       try {
         const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
         const data = await res.json();
         setBtcPrice(data.bitcoin.usd);
+        console.log('🪙 BTC price fetched:', data.bitcoin.usd);
       } catch (err) {
         console.error('Error fetching BTC price:', err);
       }
@@ -47,20 +41,25 @@ function Login() {
       });
 
       const data = await res.json();
+      console.log('📨 Login response:', data); // Full response
 
-      if (res.ok) {
-        sessionStorage.setItem('token', data.token);
-        sessionStorage.setItem('username', data.username);
-        sessionStorage.setItem('email', data.email); //added for promo code verification
-        sessionStorage.setItem('isAuthenticated', 'true');
-        navigate('/dashboard', { state: { username: data.username } });
+      if (res.ok && data.token) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('username', data.username);
+        localStorage.setItem('email', data.email || '');
+        localStorage.setItem('isAuthenticated', 'true');
+
+        console.log('✅ Token saved:', localStorage.getItem('token'));
+        console.log('✅ Email stored:', localStorage.getItem('email'));
+
+        navigate('/dashboard');
       } else {
         setErrorMsg(data.msg || 'Login failed');
         setPassword('');
       }
     } catch (err) {
-      console.error(err);
-      setErrorMsg('Error logging in');
+      console.error('❌ Login error:', err);
+      setErrorMsg('Server error during login');
     }
 
     setLoading(false);
