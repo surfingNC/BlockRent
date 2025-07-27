@@ -35,7 +35,7 @@ const Spinner = () => (
 //==============================================
 const PromoCodeForm = () => {
   const navigate = useNavigate();
-  const email = sessionStorage.getItem('email') || '';
+  const email = localStorage.getItem('email') || '';
   const [code, setCode] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -126,7 +126,7 @@ const PromoCodeForm = () => {
 
 const Subscribe = () => {
   const navigate = useNavigate();
-  const walletAddress = sessionStorage.getItem('walletAddress');
+  const walletAddress = localStorage.getItem('walletAddress');
   const [selected, setSelected] = useState(null);
   const [txId, setTxId] = useState('');
   const [status, setStatus] = useState(null);
@@ -150,7 +150,7 @@ const Subscribe = () => {
       const payload = {
         txId: finalTxId,
         walletAddress,
-        email: sessionStorage.getItem('email'),
+        email: localStorage.getItem('email'),
       };
 
       //console.log("🔍 Verifying payment with payload:", payload); //comment this out once working
