@@ -9,6 +9,8 @@ import '../styles/index.css';
 
 
 const BTC_RECEIVE_ADDRESS = process.env.REACT_APP_BTC_RECEIVE_ADDRESS;
+console.log("Frontend BTC Address:", BTC_RECEIVE_ADDRESS);
+
 
 const Spinner = () => (
   <div className="spinner" style={{ margin: '1rem auto' }}>
@@ -145,8 +147,13 @@ const Subscribe = () => {
 
 		setLoading(true);
 		try {
-			const payload = { txId: finalTxId };
-			if (walletAddress) payload.walletAddress = walletAddress;
+      const payload = {
+        txId: finalTxId,
+        walletAddress,
+        email: sessionStorage.getItem('email'),
+      };
+
+      //console.log("🔍 Verifying payment with payload:", payload); //comment this out once working
 
 			const res = await fetch('/api/payments/verify-payment', {
 				method: 'POST',
@@ -154,7 +161,11 @@ const Subscribe = () => {
 				body: JSON.stringify(payload),
 			});
 
+
 			const data = await res.json();
+      //console.log("✅ Backend response:", data); // Debug
+
+
 			setStatus(data);
 
 			if (data.success) {
@@ -304,6 +315,22 @@ useEffect(() => {
     return `(~$${usd.toFixed(2)})`;
   };
 
+  	if (existingSub?.active && existingSub?.type === 'unlimited') {
+		return (
+			<div>
+				<DashboardHeader />
+				<div style={{ maxWidth: '720px', margin: '2rem auto', padding: '2rem', textAlign: 'center' }}>
+					<h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'green' }}>✅ You already have an active Unlimited plan.</h2>
+					<p style={{ color: '#444', marginTop: '1rem' }}>
+						Your subscription is valid until: <strong>{new Date(existingSub.validUntil).toLocaleDateString()}</strong>
+					</p>
+					<p style={{ fontSize: '0.9rem', color: '#66' }}>No need to purchase again.</p>
+				</div>
+			</div>
+		);
+	}
+
+
   return (
     <div>
       <DashboardHeader />
@@ -319,7 +346,7 @@ useEffect(() => {
             {existingSub.type === 'unlimited'
               ? ` valid until ${new Date(existingSub.validUntil).toLocaleDateString()}`
               : ` ${existingSub.listingCount} listings remaining`}<br />
-            {countdown && <span style={{ fontSize: '0.85rem', color: '#666' }}>{countdown}</span>}
+            {countdown && <span style={{ fontSize: '0.85rem', color: '#665' }}>{countdown}</span>}
           </div>
         )}
 
