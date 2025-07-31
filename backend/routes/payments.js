@@ -4,86 +4,143 @@ import AgentPayment from '../models/AgentPayment.js';
 import { fetchTxDetails, parseTxForSubscription } from '../utils/txUtils.js';
 import { SUBSCRIPTIONS } from '../utils/subscriptionTiers.js';
 import sendConfirmationEmail from '../utils/Application/Email.js';
+import { v4 as uuidv4 } from 'uuid';
+import PaymentSession from '../models/PaymentSession.js';
 
 const router = express.Router();
+
+router.post('/start-payment-session', async (req, res) => {
+  const { email, planType } = req.body;
+  console.log("📥 Session request body:", req.body); // TEMPORARY LOG!!!!!
+
+  if (!email || !planType) {
+    return res.status(400).json({ error: 'Missing email or planType' });
+  }
+
+  const sessionId = uuidv4();
+
+  try {
+    const result = await PaymentSession.create({ sessionId, email, planType });
+    console.log("✅ PaymentSession created:", result); // <== Add this!
+    res.json({ sessionId });
+  } catch (err) {
+    console.error('❌ Failed to start session:', err);
+    res.status(500).json({ error: 'Could not create payment session' });
+  }
+});
+
 
 /**
  * @route POST /api/payments/verify-payment
  */
+
+
 router.post('/verify-payment', async (req, res) => {
   console.log("📩 Incoming verify-payment request:", req.body);
 
-  const { txId, email, walletAddress } = req.body;
-  if (!txId || !email) {
-    return res.status(400).json({ error: 'Missing txId or email' });
+  const { txId, sessionId, walletAddress } = req.body;
+
+  if (!txId || !sessionId) {
+    return res.status(400).json({ error: 'Missing txId or sessionId' });
   }
 
+  // Look up the session
+  const session = await PaymentSession.findOne({ sessionId });
+
+  if (!session) {
+    console.warn('❌ Session not found for ID:', sessionId);
+    return res.status(400).json({ error: 'Invalid or expired payment session.' });
+  } else {
+    console.log('✅ Found session:', session);
+  }
+
+  const email = session.email;
+  console.log("💌 Email going into PendingTx:", email);
+  
   try {
     const details = await fetchTxDetails(txId);
     console.log('🔎 Full transaction details:', JSON.stringify(details, null, 2));
 
     const { confirmed, amountSats, subTier } = parseTxForSubscription(details);
+
     if (!subTier) {
       return res.status(400).json({
-        error: 'Transaction does not match any subscription tier or address.',
+        error: 'Transaction does not match any subscription tier or receiving address.',
       });
+    }
+
+    if (!walletAddress) {
+      console.warn(`⚠️ Missing wallet address for tx ${txId}`);
     }
 
     if (!confirmed) {
       try {
+        console.log("💌 Email going into PendingTx:", email);
+
         const pendingResult = await PendingTx.findOneAndUpdate(
           { txId },
           {
             txId,
+            email: email || 'MISSING',
             walletAddress: walletAddress || 'unknown',
-            email: email || 'unknown@blockrent.app',
             amountSats,
             type: subTier.type,
           },
           { upsert: true, new: true }
         );
 
-        console.log(
-          `🕓 Tx ${txId} is unconfirmed — ${pendingResult ? 'updated' : 'added'} in PendingTx`
-        );
+        console.log(`🕓 Tx ${txId} is unconfirmed — saved to PendingTx`);
+        return res.status(202).json({
+          pending: true,
+          message: 'Transaction detected but not yet confirmed.',
+        });
       } catch (dbErr) {
         console.error('❌ Failed to save PendingTx:', dbErr);
-        return res.status(500).json({ error: 'Database error saving pending transaction' });
+        return res.status(500).json({ error: 'Database error saving pending transaction.' });
       }
-
-      return res.status(202).json({
-        pending: true,
-        message: 'Transaction detected, waiting for confirmation.',
-      });
     }
+    console.log('💾 Writing to AgentPayment:', {
+      txId,
+      email,
+      walletAddress,
+      amountSats,
+      type: subTier.type,
+      validUntil: new Date(Date.now() + subTier.durationDays * 24 * 60 * 60 * 1000),
+      listingCount: subTier.listingCount,
+    });
+
 
     const paymentResult = await AgentPayment.findOneAndUpdate(
       { txId },
       {
-        walletAddress: walletAddress || 'unknown',
-        email: email || 'unknown@blockrent.app',
         txId,
+        email,
+        walletAddress: walletAddress || 'unknown',
         amountSats,
         type: subTier.type,
         validUntil: new Date(Date.now() + subTier.durationDays * 24 * 60 * 60 * 1000),
         listingCount: subTier.listingCount,
         confirmed: true,
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, runValidators: true }
     );
 
-    console.log(
-      `✅ Confirmed tx ${txId} ${paymentResult ? 'updated' : 'created'} for ${email}`
-    );
+    console.log(`✅ Confirmed tx ${txId} ${paymentResult ? 'updated' : 'created'} for ${email}`);
 
-    await sendConfirmationEmail(email, subTier);
+    try {
+      await sendConfirmationEmail(email, subTier);
+      console.log(`📧 Confirmation email sent to ${email}`);
+    } catch (emailErr) {
+      console.error(`❌ Email send failed for ${email}: ${emailErr.message}`);
+    }
+
     return res.json({ success: true, tier: subTier.type });
-
   } catch (err) {
-    console.error('❌ Verification failed:', err);
-    return res.status(500).json({ error: 'Server error while verifying transaction' });
+    console.error('❌ Verification failed:', err.message || err);
+    return res.status(500).json({ error: 'Server error while verifying transaction.' });
   }
 });
+
 
 
 /**

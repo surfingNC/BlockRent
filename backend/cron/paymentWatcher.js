@@ -59,7 +59,13 @@ async function fetchIncomingTxs() {
       const confirmed = tx.status?.confirmed || false;
 
       const pendingRecord = await PendingTx.findOne({ txId });
-      const email = pendingRecord?.email || 'unknown@blockrent.app';
+
+      if (!pendingRecord?.email) {
+        console.warn(`⚠️ Skipping tx ${txId} — missing email in PendingTx`);
+        continue; // ⛔️ Do not proceed without a valid email
+      }
+
+      const email = pendingRecord?.email;
       const walletAddress = pendingRecord?.walletAddress || null;
 
       if (confirmed) {

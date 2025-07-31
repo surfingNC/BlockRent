@@ -1,4 +1,3 @@
-// backend/utils/pollPendingPayments.js
 import PendingTx from '../models/PendingTx.js';
 import AgentPayment from '../models/AgentPayment.js';
 import { fetchTxDetails, parseTxForSubscription } from './txUtils.js';
@@ -24,15 +23,28 @@ export async function pollPendingPayments(specificTxId = null) {
         const { confirmed, amountSats, subTier } = parseTxForSubscription(details);
 
         if (DEBUG_MODE) {
-          console.log(`\n📦 TX ${tx.txId}`);
+          console.log(`\n📦 TX: ${tx.txId}`);
           console.log(`Confirmed: ${confirmed}`);
-          console.log(`Detected subscription: ${subTier?.type || 'none'}`);
+          console.log(`Amount (sats): ${amountSats}`);
+          console.log(`Detected Subscription Tier: ${subTier?.type || 'None'}`);
+        }
+
+        // Ensure tx has necessary fields
+        if (!tx.email) {
+          console.warn(`⚠️ Missing email for tx ${tx.txId}. Skipping.`);
+          continue;
+        }
+
+        if (!tx.walletAddress) {
+          console.warn(`⚠️ Missing walletAddress for tx ${tx.txId}. Skipping.`);
+          continue;
         }
 
         if (confirmed && subTier) {
+          // Create subscription record
           await AgentPayment.create({
             walletAddress: tx.walletAddress,
-            email: tx.email || null,
+            email: tx.email,
             txId: tx.txId,
             amountSats,
             type: subTier.type,
@@ -41,23 +53,26 @@ export async function pollPendingPayments(specificTxId = null) {
             confirmed: true,
           });
 
+          // Remove from pending
           await PendingTx.deleteOne({ txId: tx.txId });
 
-          if (tx.email) {
-            sendSubscriptionConfirmationEmail(tx.email, subTier.type)
-              .then(() => console.log(`📧 Email sent to ${tx.email}`))
-              .catch(err => console.error('❌ Email send error:', err.message));
+          // Send confirmation email
+          try {
+            await sendSubscriptionConfirmationEmail(tx.email, subTier.type);
+            console.log(`📧 Confirmation email sent to ${tx.email}`);
+          } catch (emailErr) {
+            console.error(`❌ Failed to send email to ${tx.email}: ${emailErr.message}`);
           }
 
-          console.log(`✅ Confirmed & recorded tx: ${tx.txId}`);
+          console.log(`✅ Confirmed and recorded TX: ${tx.txId}`);
         } else {
-          console.log(`⏳ Still unconfirmed or invalid sats for tx: ${tx.txId}`);
+          console.log(`⏳ TX ${tx.txId} is still unconfirmed or does not meet subscription tier.`);
         }
       } catch (err) {
-        console.error(`❌ Error checking ${tx.txId}:`, err.message);
+        console.error(`❌ Error processing tx ${tx.txId}: ${err.message}`);
       }
     }
   } catch (err) {
-    console.error('❌ Polling failed:', err.message);
+    console.error('❌ Failed to poll pending payments:', err.message);
   }
 }

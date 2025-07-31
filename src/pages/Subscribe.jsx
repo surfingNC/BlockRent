@@ -1,15 +1,10 @@
-// src/pages/Subscribe.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useNavigate } from 'react-router-dom';
 import DashboardHeader from '../components/DashboardHeader';
 import '../styles/index.css';
 
-//const [subscriptionTiers, setSubscriptionTiers] = useState([]);
-
-
 const BTC_RECEIVE_ADDRESS = process.env.REACT_APP_BTC_RECEIVE_ADDRESS;
-console.log("Frontend BTC Address:", BTC_RECEIVE_ADDRESS);
 
 
 const Spinner = () => (
@@ -32,7 +27,6 @@ const Spinner = () => (
   </div>
 );
 
-//==============================================
 const PromoCodeForm = () => {
   const navigate = useNavigate();
   const email = localStorage.getItem('email') || '';
@@ -42,16 +36,8 @@ const PromoCodeForm = () => {
 
   const handlePromoSubmit = async (e) => {
     e.preventDefault();
-
-    if (!email) {
-      setMessage('❌ Email not found. Please log in again.');
-      return;
-    }
-
-    if (!code.trim()) {
-      setMessage('❌ Please enter a promo code.');
-      return;
-    }
+    if (!email) return setMessage('❌ Email not found. Please log in again.');
+    if (!code.trim()) return setMessage('❌ Please enter a promo code.');
 
     setLoading(true);
     setMessage('');
@@ -64,9 +50,8 @@ const PromoCodeForm = () => {
       });
 
       const data = await res.json();
-
       if (res.ok && data.success) {
-        setMessage('✅ Promo applied! Redirecting to dashboard...');
+        setMessage('✅ Promo applied! Redirecting...');
         setTimeout(() => navigate('/dashboard'), 1500);
       } else {
         setMessage(`❌ ${data.msg || 'Invalid promo code'}`);
@@ -122,80 +107,76 @@ const PromoCodeForm = () => {
   );
 };
 
-//==============================================
-
 const Subscribe = () => {
-  const navigate = useNavigate();
-  const walletAddress = localStorage.getItem('walletAddress');
+  const [sessionId, setSessionId] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [txId, setTxId] = useState('');
-  const [status, setStatus] = useState(null);
-  const [loading, setLoading] = useState(false);
   const [existingSub, setExistingSub] = useState(null);
   const [listening, setListening] = useState(false);
   const [countdown, setCountdown] = useState('');
   const [btcPrice, setBtcPrice] = useState(null);
   const [subscriptionTiers, setSubscriptionTiers] = useState([]);
-
-  //===============================================
-	const handleVerify = useCallback(async (overrideTxId = null) => {
-		const finalTxId = overrideTxId || txId;
-		if (!finalTxId) {
-			setStatus({ error: 'Missing txId.' });
-			return;
-		}
-
-		setLoading(true);
-		try {
-      const payload = {
-        txId: finalTxId,
-        walletAddress,
-        email: localStorage.getItem('email'),
-      };
-
-      //console.log("🔍 Verifying payment with payload:", payload); //comment this out once working
-
-			const res = await fetch('/api/payments/verify-payment', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(payload),
-			});
+  const navigate = useNavigate();
+  const walletAddress = localStorage.getItem('walletAddress');
+  const [email, setEmail] = useState(null); // null means "not yet loaded"
+  const [emailReady, setEmailReady] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState(null);
 
 
-			const data = await res.json();
-      //console.log("✅ Backend response:", data); // Debug
+useEffect(() => {
+  const syncEmail = () => {
+    const fresh = localStorage.getItem('email');
+    if (fresh && fresh !== email) {
+      setEmail(fresh);
+      setEmailReady(true);
+    }
+  };
+
+  syncEmail(); // Initial check
+  const interval = setInterval(syncEmail, 500); // Poll every 0.5s
+
+  return () => clearInterval(interval);
+}, [email]);
 
 
-			setStatus(data);
+const handlePlanSelect = async (plan) => {
+  if (!emailReady || !email) {
+    console.error('❌ Email not ready or missing in handlePlanSelect');
+    alert('Please wait for your email to finish loading...');
+    return;
+  }
 
-			if (data.success) {
-				await fetch('/api/notifications/subscription-confirmed', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ walletAddress: walletAddress || 'manual' }),
-				});
+   // ✅ Log the email you're sending to the backend
+  console.log('🔁 Submitting session start with:', email);
 
-				setTimeout(() => navigate('/dashboard'), 2000);
-			}
-		} catch (err) {
-			console.error('Verification failed:', err);
-			setStatus({ error: 'Verification failed' });
-		}
-		setLoading(false);
-	}, [txId, walletAddress, navigate]);
+  try {
+    const res = await fetch('/api/payments/start-payment-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, planType: plan.type }),
+    });
 
+    const data = await res.json();
 
-  //==========================
+    if (res.ok && data.sessionId) {
+      setSessionId(data.sessionId);
+      setSelected(plan);
+      console.log("🆔 Session started:", data.sessionId);
+    } else {
+      console.error('❌ Failed to start session:', data.error);
+    }
+  } catch (err) {
+    console.error('Failed to start session:', err);
+  }
+};
 
-    useEffect(() => {
-      fetch('/api/payments/tiers')
+  useEffect(() => {
+    fetch('/api/payments/tiers')
       .then(res => res.json())
       .then(data => setSubscriptionTiers(data))
       .catch(err => console.error('Failed to fetch tiers:', err));
-    }, []);
+  }, []);
 
   useEffect(() => {
-    // should this go here?
     const fetchCachedPrice = async () => {
       const cached = localStorage.getItem('btc_price_cached');
       const timestamp = localStorage.getItem('btc_price_cached_at');
@@ -222,7 +203,6 @@ const Subscribe = () => {
 
     fetchCachedPrice();
   }, []);
-
 
   useEffect(() => {
     if (!walletAddress) return;
@@ -262,8 +242,9 @@ useEffect(() => {
       setListening(true);
       ws.send(JSON.stringify({ action: 'want', data: [`addr:${BTC_RECEIVE_ADDRESS}`] }));
     };
-
+    
     ws.onmessage = (event) => {
+      //console.log('📡 Raw ws message:', msg.data); TRY TOMORROW!!!
       const msg = JSON.parse(event.data);
       const txs = msg?.data?.transactions || [];
       const match = txs.find(tx =>
@@ -271,12 +252,50 @@ useEffect(() => {
       );
       if (match) {
         console.log('🟡 Incoming tx detected:', match.txid);
-        setTxId(match.txid);
-        handleVerify(match.txid);
+
+        const waitForSession = setInterval(() => {
+          if (sessionId) {
+            clearInterval(waitForSession);
+            console.log('🟢 Verifying with sessionId:', sessionId);
+
+            fetch('/api/payments/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                txId: match.txid,
+                walletAddress,
+                sessionId,
+              }),
+            })
+              .then(res => res.json())
+              .then(data => {
+                console.log('✅ Verification response:', data);
+                if (data.success) {
+                  setVerifyMessage('✅ Subscription confirmed! Redirecting...');
+                  fetch('/api/notifications/subscription-confirmed', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: walletAddress || 'manual' }),
+                  });
+                  setTimeout(() => navigate('/dashboard'), 2000);
+                } else {
+                  setVerifyMessage('❌ Verification failed.');
+                }
+              })
+              .catch(err => {
+                console.error('❌ Verification error:', err);
+                setVerifyMessage('❌ Verification failed.');
+              });
+          } else {
+            console.log('⏳ Still waiting for sessionId...');
+          }
+        }, 200);
+
         ws.close();
         setListening(false);
       }
     };
+
 
     ws.onclose = () => {
       setListening(false);
@@ -294,7 +313,7 @@ useEffect(() => {
 
   connectWebSocket();
   return () => ws && ws.close();
-}, [selected, handleVerify]);
+}, [selected, sessionId, walletAddress, navigate]);
 
 
 
@@ -302,12 +321,9 @@ useEffect(() => {
     if (!listening) return;
     const timeout = setTimeout(() => {
       setListening(false);
-    }, 3 * 60 * 1000);
+    }, 180000);
     return () => clearTimeout(timeout);
   }, [listening]);
-// ========
-
-//=========
 
   const formatUsd = (sats) => {
     if (!btcPrice) return '(~$...)';
@@ -315,140 +331,114 @@ useEffect(() => {
     return `(~$${usd.toFixed(2)})`;
   };
 
-  	if (existingSub?.active && existingSub?.type === 'unlimited') {
-		return (
-			<div>
-				<DashboardHeader username={localStorage.getItem('username') || ''} />
-				<div style={{ maxWidth: '720px', margin: '2rem auto', padding: '2rem', textAlign: 'center' }}>
-					<h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'green' }}>✅ You already have an active Unlimited plan.</h2>
-					<p style={{ color: '#444', marginTop: '1rem' }}>
-						Your subscription is valid until: <strong>{new Date(existingSub.validUntil).toLocaleDateString()}</strong>
-					</p>
-					<p style={{ fontSize: '0.9rem', color: '#66' }}>No need to purchase again.</p>
-				</div>
-			</div>
-		);
-	}
-
-
   return (
     <div>
       <DashboardHeader username={localStorage.getItem('username') || ''} />
       <div style={{ maxWidth: '960px', margin: '0 auto', padding: '2rem' }}>
-        <h2 style={{ fontSize: '2rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '1rem' }}>Choose a Subscription Plan</h2>
+        <h2 style={{ fontSize: '2rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '1rem' }}>
+          Choose a Subscription Plan
+        </h2>
 
         <PromoCodeForm />
 
-
         {existingSub?.active && (
           <div style={{ textAlign: 'center', color: 'green', marginBottom: '1rem' }}>
-            Current Plan: <strong>{existingSub.type.toUpperCase()}</strong> —
+            Current Plan: <strong>{existingSub.type.toUpperCase()}</strong> —{' '}
             {existingSub.type === 'unlimited'
-              ? ` valid until ${new Date(existingSub.validUntil).toLocaleDateString()}`
-              : ` ${existingSub.listingCount} listings remaining`}<br />
+              ? `valid until ${new Date(existingSub.validUntil).toLocaleDateString()}`
+              : `${existingSub.listingCount} listings remaining`}
+            <br />
             {countdown && <span style={{ fontSize: '0.85rem', color: '#665' }}>{countdown}</span>}
           </div>
         )}
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', marginBottom: '2rem' }}>
-          {subscriptionTiers.map(plan => (
-
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', marginBottom: '2rem' }}>
+        {subscriptionTiers.map((plan) => (
             <div
-              key={plan.type}
-              onClick={() => setSelected(plan)}
-              style={{
-                border: selected?.type === plan.type ? '2px solid #2563eb' : '1px solid #ccc',
-                borderRadius: '1rem',
-                padding: '1.5rem',
-                width: '250px',
-                cursor: 'pointer',
-                backgroundColor: selected?.type === plan.type ? '#eff6ff' : '#fff',
-                boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
-                position: 'relative',
-              }}
+                key={plan.type}
+                onClick={emailReady ? () => handlePlanSelect(plan) : undefined}
+                title={emailReady ? '' : 'Waiting for email to load...'}
+                style={{
+                    border: selected?.type === plan.type ? '2px solid #2563eb' : '1px solid #ccc',
+                    borderRadius: '1rem',
+                    padding: '1.5rem',
+                    width: '250px',
+                    cursor: emailReady ? 'pointer' : 'not-allowed',
+                    opacity: emailReady ? 1 : 0.6,
+                    backgroundColor: selected?.type === plan.type ? '#eff6ff' : '#fff',
+                    boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
+                    position: 'relative',
+                    transition: 'all 0.3s ease',
+                    pointerEvents: emailReady ? 'auto' : 'none'
+                }}
             >
-              {selected?.type === plan.type && (
-                <span style={{ position: 'absolute', top: '0.5rem', right: '0.75rem', color: 'green', fontSize: '1.25rem' }}>✔</span>
-              )}
-              <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-                {plan.type.charAt(0).toUpperCase() + plan.type.slice(1)}
-              </h3>
-              <p>
-                {plan.sats.toLocaleString('en-US')} sats{' '}
-                <span style={{ color: '#665' }}>{formatUsd(plan.sats)}</span>
-              </p>
-              <p>{plan.durationDays} days</p>
-              <p>{plan.listingCount === Infinity ? 'Unlimited' : plan.listingCount} listings</p>
+                {selected?.type === plan.type && (
+                    <span style={{
+                        position: 'absolute',
+                        top: '0.5rem',
+                        right: '0.75rem',
+                        color: 'green',
+                        fontSize: '1.25rem'
+                    }}>
+                        ✔
+                    </span>
+                )}
+                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                    {plan.type.charAt(0).toUpperCase() + plan.type.slice(1)}
+                </h3>
+                <p>
+                    {plan.sats.toLocaleString('en-US')} sats{' '}
+                    <span style={{ color: '#665' }}>{formatUsd(plan.sats)}</span>
+                </p>
+                <p>{plan.durationDays} days</p>
+                <p>{plan.listingCount === Infinity ? 'Unlimited' : plan.listingCount} listings</p>
             </div>
-          ))}
-        </div>
+        ))}
+    </div>
+
 
         {selected && (
-            <div style={{ textAlign: 'center' }}>
-                <p className="mb-2">
-                    Send <strong>{selected.sats.toLocaleString('en-US')} sats</strong> to:
-                </p>
-                <code style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', background: '#f1f1f1', padding: '0.5rem', borderRadius: '0.5rem' }}>
-                    {BTC_RECEIVE_ADDRESS}
-                </code>
+          <div style={{ textAlign: 'center' }}>
+            <p className="mb-2">
+              Send <strong>{selected.sats.toLocaleString('en-US')} sats</strong> to:
+            </p>
+            <code style={{
+              display: 'block',
+              marginBottom: '0.5rem',
+              fontSize: '0.85rem',
+              background: '#f1f1f1',
+              padding: '0.5rem',
+              borderRadius: '0.5rem',
+            }}>
+              {BTC_RECEIVE_ADDRESS}
+            </code>
 
-                <div style={{ marginBottom: '1rem' }}>
-                    <QRCodeCanvas
-                        value={`bitcoin:${BTC_RECEIVE_ADDRESS}?amount=${selected.sats / 100000000}`}
-                        size={160}
-                    />
-                </div>
-
-                {listening && (
-                    <div>
-                        <Spinner />
-                        <p style={{ fontSize: '0.9rem', color: '#2563eb' }}>
-                            Listening for incoming payment... (auto-verifies on confirmation)
-                        </p>
-                    </div>
-                )}
-
-                <div style={{ marginTop: '1rem' }}>
-                    <p style={{ fontSize: '0.9rem', color: '#665' }}>
-                        Didn't detect your payment? You can manually verify it here:
-                    </p>
-                    <input
-                        type="text"
-                        value={txId}
-                        onChange={(e) => setTxId(e.target.value)}
-                        placeholder="Paste Transaction ID (txid)"
-                        style={{ border: '1px solid #ccc', padding: '0.5rem', borderRadius: '0.5rem', width: '250px' }}
-                    />
-                    <br />
-                    <button
-                        onClick={() => handleVerify()}
-                        disabled={!txId || loading}
-                        style={{
-                            marginTop: '0.75rem',
-                            padding: '0.5rem 1.25rem',
-                            backgroundColor: '#2563eb',
-                            color: 'white',
-                            borderRadius: '0.5rem',
-                            border: 'none',
-                            cursor: 'pointer',
-                        }}
-                    >
-                        {loading ? 'Verifying...' : 'Verify Manually'}
-                    </button>
-                </div>
+            <div style={{ marginBottom: '1rem' }}>
+              <QRCodeCanvas
+                value={`bitcoin:${BTC_RECEIVE_ADDRESS}?amount=${selected.sats / 100000000}`}
+                size={160}
+              />
             </div>
-        )}
 
-
-        {status && (
-          <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-            {status.error ? (
-              <p style={{ color: 'red' }}>{status.error}</p>
-            ) : (
-              <p style={{ color: 'green' }}>Subscription confirmed! Redirecting...</p>
+            {listening && (
+              <div>
+                <Spinner />
+                <p style={{ fontSize: '0.9rem', color: '#2563eb' }}>
+                  Listening for incoming payment... (auto-verifies on confirmation)
+                </p>
+              </div>
             )}
           </div>
         )}
+
+        {verifyMessage && (
+            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+                <p style={{ color: verifyMessage.startsWith('✅') ? 'green' : 'red' }}>
+                    {verifyMessage}
+                </p>
+            </div>
+        )}
+
       </div>
     </div>
   );
