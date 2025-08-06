@@ -5,6 +5,7 @@ import DashboardHeader from '../components/DashboardHeader';
 import '../styles/index.css';
 
 const BTC_RECEIVE_ADDRESS = process.env.REACT_APP_BTC_RECEIVE_ADDRESS;
+console.log('🎯 BTC_RECEIVE_ADDRESS (in component):', BTC_RECEIVE_ADDRESS);
 
 
 const Spinner = () => (
@@ -115,30 +116,140 @@ const Subscribe = () => {
   const [countdown, setCountdown] = useState('');
   const [btcPrice, setBtcPrice] = useState(null);
   const [subscriptionTiers, setSubscriptionTiers] = useState([]);
-  const navigate = useNavigate();
+  //const navigate = useNavigate();
   const walletAddress = localStorage.getItem('walletAddress');
   const [email, setEmail] = useState(null); // null means "not yet loaded"
   const [emailReady, setEmailReady] = useState(false);
-  const [verifyMessage, setVerifyMessage] = useState(null);
+  //const [verifyMessage, setVerifyMessage] = useState(null);
 
 
 useEffect(() => {
-  const syncEmail = () => {
-    const fresh = localStorage.getItem('email');
-    if (fresh && fresh !== email) {
-      setEmail(fresh);
+  const interval = setInterval(() => {
+    const stored = localStorage.getItem('email');
+    if (stored && stored !== 'null' && stored !== null) {
+      console.log('📧 Hydrated email:', stored);
+      setEmail(stored);
       setEmailReady(true);
+      clearInterval(interval);
+    } else {
+      console.log('⏳ Waiting for email in localStorage...');
     }
-  };
-
-  syncEmail(); // Initial check
-  const interval = setInterval(syncEmail, 500); // Poll every 0.5s
+  }, 250);
 
   return () => clearInterval(interval);
-}, [email]);
+}, []);
+
+const triggerWebSocket = (sessionId, actualEmail, walletAddress) => {
+  console.log('⚡ triggerWebSocket(): sessionId =', sessionId);
+  console.log('⚡ triggerWebSocket(): actualEmail =', actualEmail);
+  console.log('⚡ triggerWebSocket(): walletAddress =', walletAddress);
+  console.log('⚡ triggerWebSocket(): emailReady =', emailReady);
+
+  if (!emailReady || !actualEmail || actualEmail === 'null') {
+    console.error('❌ Hydrated email is missing or invalid in triggerWebSocket');
+    alert('Email not loaded. Please refresh and try again.');
+    return;
+  }
+  console.log('🚀 Triggering WebSocket manually...');
+
+  const ws = new WebSocket('wss://mempool.space/api/v1/ws');
+
+  ws.onopen = () => {
+    console.log('🔌 WebSocket connected');
+
+    if (!BTC_RECEIVE_ADDRESS || BTC_RECEIVE_ADDRESS.length < 10) {
+      console.error('❌ BTC_RECEIVE_ADDRESS is invalid or missing:', BTC_RECEIVE_ADDRESS);
+      ws.close();
+      return;
+    }
+
+    const subMsg = { action: 'want', data: [`addr:${BTC_RECEIVE_ADDRESS}`] };
+    console.log('📨 Subscribing with message:', subMsg);
+    ws.send(JSON.stringify(subMsg));
+
+    setListening(true);
+  };
+
+ws.onmessage = (event) => {
+  console.log('📡 Raw WebSocket message:', event.data);
+  let msg;
+  try {
+    msg = JSON.parse(event.data);
+  } catch (e) {
+    console.error('❌ Failed to parse ws message:', e);
+    return;
+  }
+
+  const txid = msg?.data?.txid;
+  const outputs = msg?.data?.vout || [];
+
+  const matchedOutput = outputs.find(o => o.scriptpubkey_address === BTC_RECEIVE_ADDRESS);
+  if (!matchedOutput || !txid) {
+    console.log('📭 No matching output or missing txid');
+    return;
+  }
+
+  console.log('🎯 Matched txid! About to post for verification:', txid);
+  console.log('📬 Triggering fetch with email:', actualEmail);
+
+  fetch('/api/payments/verify-payment', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ txId: txid, sessionId, email: actualEmail, walletAddress }),
+  })
+    .then(res => res.json())
+    .then(data => {
+      console.log('✅ Verification response:', data);
+      if (data.success) {
+        fetch('/api/notifications/subscription-confirmed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress }),
+        });
+
+        setTimeout(() => {
+          window.location.href = '/dashboard';
+          ws.close(); // ✅ Only close WebSocket on success
+        }, 1500);
+      } else {
+        alert('❌ Verification failed.');
+        // Don't close WebSocket here — keep listening
+      }
+    })
+    .catch(err => {
+      console.error('❌ Verification error:', err);
+      alert('❌ Verification failed.');
+      // Still don't close here — might succeed later
+    });
+};
+
+
+ws.onerror = (err) => {
+  console.error('⚠️ WebSocket error occurred:', err);
+
+  // Do not close immediately — let the connection stay alive
+  // Optionally notify the user, or set a retry timeout if connection is lost
+
+  // Example (optional): notify after delay if still broken
+  setTimeout(() => {
+    if (ws.readyState !== WebSocket.OPEN) {
+      console.warn('⏱ Still not connected — closing WebSocket');
+      ws.close(); // Graceful cleanup only if needed
+    }
+  }, 5000); // wait 5s before taking action
+};
+
+
+  ws.onclose = () => {
+    console.log('🔌 WebSocket closed');
+  };
+};
+
 
 
 const handlePlanSelect = async (plan) => {
+   const actualEmail = localStorage.getItem('email'); // ✅ get fresh value
+
   if (!emailReady || !email) {
     console.error('❌ Email not ready or missing in handlePlanSelect');
     alert('Please wait for your email to finish loading...');
@@ -152,15 +263,21 @@ const handlePlanSelect = async (plan) => {
     const res = await fetch('/api/payments/start-payment-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, planType: plan.type }),
+      body: JSON.stringify({ email: actualEmail, planType: plan.type }),
     });
+
 
     const data = await res.json();
 
     if (res.ok && data.sessionId) {
       setSessionId(data.sessionId);
+      localStorage.setItem('lastSessionId', data.sessionId); // 🆕 persist to localStorage
       setSelected(plan);
       console.log("🆔 Session started:", data.sessionId);
+      setTimeout(() => {
+        triggerWebSocket(data.sessionId, actualEmail, walletAddress);
+      }, 250);
+
     } else {
       console.error('❌ Failed to start session:', data.error);
     }
@@ -168,6 +285,7 @@ const handlePlanSelect = async (plan) => {
     console.error('Failed to start session:', err);
   }
 };
+
 
   useEffect(() => {
     fetch('/api/payments/tiers')
@@ -204,116 +322,43 @@ const handlePlanSelect = async (plan) => {
     fetchCachedPrice();
   }, []);
 
-  useEffect(() => {
-    if (!walletAddress) return;
-    fetch(`/api/payments/status?walletAddress=${walletAddress}`)
-      .then(res => res.json())
-      .then(data => {
-        setExistingSub(data);
-        if (data?.validUntil) {
-          const interval = setInterval(() => {
-            const diff = new Date(data.validUntil) - new Date();
-            if (diff <= 0) {
-              clearInterval(interval);
-              setCountdown('Expired');
-            } else {
-              const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-              const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
-              const minutes = Math.floor((diff / (1000 * 60)) % 60);
-              setCountdown(`${days}d ${hours}h ${minutes}m remaining`);
-            }
-          }, 60000);
-          return () => clearInterval(interval);
-        }
-      })
-      .catch(err => console.error('Error fetching subscription status:', err));
-  }, [walletAddress]);
-
 useEffect(() => {
-  if (!selected) return;
-  let ws;
-  let retryCount = 0;
-  const maxRetries = 5;
+  const queryParam = walletAddress
+    ? `walletAddress=${walletAddress}`
+    : email
+    ? `email=${email}`
+    : null;
 
-  const connectWebSocket = () => {
-    ws = new WebSocket('wss://mempool.space/api/v1/ws');
+  if (!queryParam) return;
 
-    ws.onopen = () => {
-      setListening(true);
-      ws.send(JSON.stringify({ action: 'want', data: [`addr:${BTC_RECEIVE_ADDRESS}`] }));
-    };
-    
-    ws.onmessage = (event) => {
-      //console.log('📡 Raw ws message:', msg.data); TRY TOMORROW!!!
-      const msg = JSON.parse(event.data);
-      const txs = msg?.data?.transactions || [];
-      const match = txs.find(tx =>
-        tx.vout?.some(o => o.scriptpubkey_address === BTC_RECEIVE_ADDRESS)
-      );
-      if (match) {
-        console.log('🟡 Incoming tx detected:', match.txid);
+  fetch(`/api/payments/status?${queryParam}`)
+    .then(res => res.json())
+    .then(data => {
+      setExistingSub(data);
 
-        const waitForSession = setInterval(() => {
-          if (sessionId) {
-            clearInterval(waitForSession);
-            console.log('🟢 Verifying with sessionId:', sessionId);
-
-            fetch('/api/payments/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                txId: match.txid,
-                walletAddress,
-                sessionId,
-              }),
-            })
-              .then(res => res.json())
-              .then(data => {
-                console.log('✅ Verification response:', data);
-                if (data.success) {
-                  setVerifyMessage('✅ Subscription confirmed! Redirecting...');
-                  fetch('/api/notifications/subscription-confirmed', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ walletAddress: walletAddress || 'manual' }),
-                  });
-                  setTimeout(() => navigate('/dashboard'), 2000);
-                } else {
-                  setVerifyMessage('❌ Verification failed.');
-                }
-              })
-              .catch(err => {
-                console.error('❌ Verification error:', err);
-                setVerifyMessage('❌ Verification failed.');
-              });
+      if (data?.validUntil) {
+        const interval = setInterval(() => {
+          const diff = new Date(data.validUntil) - new Date();
+          if (diff <= 0) {
+            clearInterval(interval);
+            setCountdown('Expired');
           } else {
-            console.log('⏳ Still waiting for sessionId...');
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+            const minutes = Math.floor((diff / (1000 * 60)) % 60);
+            setCountdown(`${days}d ${hours}h ${minutes}m remaining`);
           }
-        }, 200);
+        }, 60000);
 
-        ws.close();
-        setListening(false);
+        return () => clearInterval(interval);
       }
-    };
+    })
+    .catch(err => console.error('Error fetching subscription status:', err));
+}, [walletAddress, email]);
 
+// ======================================================
 
-    ws.onclose = () => {
-      setListening(false);
-      if (retryCount < maxRetries) {
-        retryCount++;
-        setTimeout(() => connectWebSocket(), 3000);
-      }
-    };
-
-    ws.onerror = (err) => {
-      console.error('WebSocket error:', err);
-      ws.close();
-    };
-  };
-
-  connectWebSocket();
-  return () => ws && ws.close();
-}, [selected, sessionId, walletAddress, navigate]);
+//======================================================
 
 
 
@@ -321,7 +366,7 @@ useEffect(() => {
     if (!listening) return;
     const timeout = setTimeout(() => {
       setListening(false);
-    }, 180000);
+    }, 600000); //10 minutes
     return () => clearTimeout(timeout);
   }, [listening]);
 
@@ -351,50 +396,48 @@ useEffect(() => {
             {countdown && <span style={{ fontSize: '0.85rem', color: '#665' }}>{countdown}</span>}
           </div>
         )}
+{emailReady ? (
+  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', marginBottom: '2rem' }}>
+    {subscriptionTiers.map((plan) => (
+      <div
+        key={plan.type}
+        onClick={() => handlePlanSelect(plan)}
+        style={{
+          border: selected?.type === plan.type ? '2px solid #2563eb' : '1px solid #ccc',
+          borderRadius: '1rem',
+          padding: '1.5rem',
+          width: '250px',
+          cursor: 'pointer',
+          backgroundColor: selected?.type === plan.type ? '#eff6ff' : '#fff',
+          boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
+          position: 'relative',
+          transition: 'all 0.3s ease',
+        }}
+      >
+        {selected?.type === plan.type && (
+          <span style={{
+            position: 'absolute',
+            top: '0.5rem',
+            right: '0.75rem',
+            color: 'green',
+            fontSize: '1.25rem'
+          }}>
+            ✔
+          </span>
+        )}
+        <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+          {plan.type.charAt(0).toUpperCase() + plan.type.slice(1)}
+        </h3>
+        <p>{plan.sats.toLocaleString('en-US')} sats <span style={{ color: '#665' }}>{formatUsd(plan.sats)}</span></p>
+        <p>{plan.durationDays} days</p>
+        <p>{plan.listingCount === Infinity ? 'Unlimited' : plan.listingCount} listings</p>
+      </div>
+    ))}
+  </div>
+) : (
+  <p style={{ textAlign: 'center', color: '#888' }}>⏳ Loading email…</p>
+)}
 
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', marginBottom: '2rem' }}>
-        {subscriptionTiers.map((plan) => (
-            <div
-                key={plan.type}
-                onClick={emailReady ? () => handlePlanSelect(plan) : undefined}
-                title={emailReady ? '' : 'Waiting for email to load...'}
-                style={{
-                    border: selected?.type === plan.type ? '2px solid #2563eb' : '1px solid #ccc',
-                    borderRadius: '1rem',
-                    padding: '1.5rem',
-                    width: '250px',
-                    cursor: emailReady ? 'pointer' : 'not-allowed',
-                    opacity: emailReady ? 1 : 0.6,
-                    backgroundColor: selected?.type === plan.type ? '#eff6ff' : '#fff',
-                    boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
-                    position: 'relative',
-                    transition: 'all 0.3s ease',
-                    pointerEvents: emailReady ? 'auto' : 'none'
-                }}
-            >
-                {selected?.type === plan.type && (
-                    <span style={{
-                        position: 'absolute',
-                        top: '0.5rem',
-                        right: '0.75rem',
-                        color: 'green',
-                        fontSize: '1.25rem'
-                    }}>
-                        ✔
-                    </span>
-                )}
-                <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-                    {plan.type.charAt(0).toUpperCase() + plan.type.slice(1)}
-                </h3>
-                <p>
-                    {plan.sats.toLocaleString('en-US')} sats{' '}
-                    <span style={{ color: '#665' }}>{formatUsd(plan.sats)}</span>
-                </p>
-                <p>{plan.durationDays} days</p>
-                <p>{plan.listingCount === Infinity ? 'Unlimited' : plan.listingCount} listings</p>
-            </div>
-        ))}
-    </div>
 
 
         {selected && (
@@ -431,13 +474,7 @@ useEffect(() => {
           </div>
         )}
 
-        {verifyMessage && (
-            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-                <p style={{ color: verifyMessage.startsWith('✅') ? 'green' : 'red' }}>
-                    {verifyMessage}
-                </p>
-            </div>
-        )}
+
 
       </div>
     </div>

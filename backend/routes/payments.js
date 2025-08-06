@@ -11,30 +11,39 @@ const router = express.Router();
 
 router.post('/start-payment-session', async (req, res) => {
   const { email, planType } = req.body;
-  console.log("📥 Session request body:", req.body); // TEMPORARY LOG!!!!!
 
   if (!email || !planType) {
     return res.status(400).json({ error: 'Missing email or planType' });
   }
 
-  const sessionId = uuidv4();
-
   try {
-    const result = await PaymentSession.create({ sessionId, email, planType });
-    console.log("✅ PaymentSession created:", result); // <== Add this!
-    res.json({ sessionId });
+    // 🧹 Clean up old sessions for this email
+    await PaymentSession.deleteMany({ email });
+
+    // 🆕 Create new session
+    const sessionId = uuidv4();
+    const newSession = new PaymentSession({
+      sessionId,
+      email,
+      planType,
+      createdAt: new Date()
+    });
+
+    await newSession.save();
+
+    console.log('🆕 PaymentSession created:', sessionId);
+    return res.status(201).json({ sessionId });
   } catch (err) {
-    console.error('❌ Failed to start session:', err);
-    res.status(500).json({ error: 'Could not create payment session' });
+    console.error('❌ Failed to create session:', err);
+    return res.status(500).json({ error: 'Failed to create payment session' });
   }
 });
+
 
 
 /**
  * @route POST /api/payments/verify-payment
  */
-
-
 router.post('/verify-payment', async (req, res) => {
   console.log("📩 Incoming verify-payment request:", req.body);
 
@@ -45,7 +54,11 @@ router.post('/verify-payment', async (req, res) => {
   }
 
   // Look up the session
-  const session = await PaymentSession.findOne({ sessionId });
+ const session = await PaymentSession.findOne({
+  sessionId,
+  createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) } // 15 minutes ago
+});
+
 
   if (!session) {
     console.warn('❌ Session not found for ID:', sessionId);
@@ -54,9 +67,15 @@ router.post('/verify-payment', async (req, res) => {
     console.log('✅ Found session:', session);
   }
 
-  const email = session.email;
-  console.log("💌 Email going into PendingTx:", email);
-  
+  //const email = session.email;
+  const email = session?.email || req.body.email; // ✅ fallback
+  if (!email) {
+    console.warn(`❌ Email is missing for tx: ${txId}, session: ${sessionId}`);
+    console.log('📦 Full session object:', session); 
+    console.log('📬 req.body.email was:', req.body.email);
+    return res.status(400).json({ error: 'Missing user email.' });
+  }
+
   try {
     const details = await fetchTxDetails(txId);
     console.log('🔎 Full transaction details:', JSON.stringify(details, null, 2));
@@ -73,6 +92,12 @@ router.post('/verify-payment', async (req, res) => {
       console.warn(`⚠️ Missing wallet address for tx ${txId}`);
     }
 
+    if (!email || email === 'MISSING') {
+      console.warn(`❌ Cannot save PendingTx — missing valid email for tx: ${txId}`);
+      return res.status(400).json({ error: 'Missing email. Cannot save pending transaction.' });
+    }
+
+
     if (!confirmed) {
       try {
         console.log("💌 Email going into PendingTx:", email);
@@ -81,7 +106,7 @@ router.post('/verify-payment', async (req, res) => {
           { txId },
           {
             txId,
-            email: email || 'MISSING',
+            email: email,
             walletAddress: walletAddress || 'unknown',
             amountSats,
             type: subTier.type,
@@ -139,9 +164,8 @@ router.post('/verify-payment', async (req, res) => {
     console.error('❌ Verification failed:', err.message || err);
     return res.status(500).json({ error: 'Server error while verifying transaction.' });
   }
+
 });
-
-
 
 /**
  * @route GET /api/payments/status

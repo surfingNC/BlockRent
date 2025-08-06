@@ -50,23 +50,20 @@ async function fetchIncomingTxs() {
 
       const amountSats = output.value;
       const subTier = determineSubscription(amountSats);
-
       if (!subTier) {
         debug(`⚠️ Tx ${txId} doesn't match any subscription tier`);
         continue;
       }
 
       const confirmed = tx.status?.confirmed || false;
-
       const pendingRecord = await PendingTx.findOne({ txId });
 
       if (!pendingRecord?.email) {
         console.warn(`⚠️ Skipping tx ${txId} — missing email in PendingTx`);
-        continue; // ⛔️ Do not proceed without a valid email
+        continue;
       }
 
-      const email = pendingRecord?.email;
-      const walletAddress = pendingRecord?.walletAddress || null;
+      const { email, walletAddress } = pendingRecord;
 
       if (confirmed) {
         const existingPayment = await AgentPayment.findOne({ txId, confirmed: true });
@@ -90,9 +87,7 @@ async function fetchIncomingTxs() {
           { upsert: true, new: true }
         );
 
-        if (pendingRecord) {
-          await PendingTx.deleteOne({ txId });
-        }
+        await PendingTx.deleteOne({ txId });
 
         debug(`✅ Confirmed tx ${txId} recorded in AgentPayment`);
       } else {
@@ -178,7 +173,22 @@ async function checkPendingPayments() {
 }
 
 /**
- * STEP 3: Clean expired payments
+ * STEP 3: Clean up old PendingTx (older than 24 hours)
+ */
+async function cleanUpOldPendingTxs() {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+  try {
+    const result = await PendingTx.deleteMany({ createdAt: { $lt: cutoff } });
+    if (result.deletedCount > 0) {
+      console.log(`🧹 Deleted ${result.deletedCount} stale PendingTx records older than 24h`);
+    }
+  } catch (err) {
+    console.error('❌ Error cleaning stale PendingTx:', err);
+  }
+}
+
+/**
+ * STEP 4: Clean expired AgentPayments
  */
 async function cleanUpExpiredPayments() {
   const now = new Date();
@@ -202,6 +212,7 @@ async function startWatcher() {
     await Promise.all([
       fetchIncomingTxs(),
       checkPendingPayments(),
+      cleanUpOldPendingTxs(),        // 🧹 NEW: Only deletes >24h old PendingTxs
       cleanUpExpiredPayments()
     ]);
   }, 60 * 1000);
