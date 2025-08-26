@@ -15,4 +15,10 @@ const UnattributedTxSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// ✅ TTL index (24h). Documents expire at seenAt + 86400s
+UnattributedTxSchema.index(
+  { seenAt: 1 },
+  { expireAfterSeconds: 60 * 60 * 24, name: 'ttl_seenAt_24h' }
+);
+
 export default mongoose.model('UnattributedTx', UnattributedTxSchema);

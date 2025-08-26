@@ -87,115 +87,99 @@ const startBtcPaymentListener = ({
   activeWs = ws;
 
 
-  ws.onopen = () => {
-    console.log('🔌 WebSocket connected');
+ws.onopen = () => {
+  console.log('🔌 WebSocket connected');
+  try {
     const subMsg = { action: 'want', data: [`addr:${receiveAddress}`] };
-    console.log('📨 Subscribing with:', subMsg);
     ws.send(JSON.stringify(subMsg));
     setListening?.(true);
-  };
+  } catch (e) {
+    console.warn('⚠️ Failed to send subscription message:', e);
+  }
+};
 
-  ws.onmessage = async (event) => {
-    console.log('📡 Raw WebSocket message:', event.data);
 
-    let msg;
+ws.onmessage = async (event) => {
+  let msg;
+  try { msg = JSON.parse(event.data); } catch { return; }
+
+  // Normalize possible shapes:
+  // A) { event:'new-transaction', data:{ txid, vout:[...] , status? } }
+  // B) { txid, vout:[...], status? }             // common on address feed
+  // C) { data:{ txid, outputs:[...], status? } } // some variants
+  let txid, voutArr, status;
+
+  if (msg?.event === 'new-transaction' && Array.isArray(msg?.data?.vout)) {
+    txid   = msg.data.txid;
+    voutArr= msg.data.vout;
+    status = msg.data.status;
+  } else if (typeof msg?.txid === 'string' && Array.isArray(msg?.vout)) {
+    txid   = msg.txid;
+    voutArr= msg.vout;
+    status = msg.status;
+  } else if (typeof msg?.data?.txid === 'string' && Array.isArray(msg?.data?.outputs)) {
+    txid   = msg.data.txid;
+    voutArr= msg.data.outputs;
+    status = msg.data.status;
+  } else {
+    // ignore non-tx messages like { conversions: {...} }, block headers, etc.
+    return;
+  }
+
+  const match = voutArr.find(
+    (o) => String(o?.scriptpubkey_address || '').toLowerCase() === RA
+  );
+  if (!match || !txid) return;
+
+  // de-dupe
+  if (seenTxids.has(txid)) return;
+
+  const receivedSats = Number(match.value ?? 0);
+  if (expectedSats && Number.isFinite(receivedSats) && receivedSats < expectedSats) return;
+
+  // optional time guard (keeps your original logic)
+  const nowSec = Math.floor(Date.now() / 1000);
+  const txTimeSec =
+    status?.block_time ||
+    status?.timestamp ||
+    nowSec;
+
+  if (sessionStartTime) {
+    const sessionStartSec = Math.floor(sessionStartTime / 1000);
+    if (txTimeSec < sessionStartSec - 5) return;
+  }
+
+  seenTxids.add(txid);
+  setPendingTxDetected?.(true);
+
+  const finalEmail  = (email && email.includes('@')) ? email : 'unknown@blockrent.app';
+  const finalWallet = walletAddress || null;
+
+  const { ok, json } = await triggerVerify({
+    txid,
+    sessionId,
+    email: finalEmail,
+    walletAddress: finalWallet,
+  });
+
+  if (ok && (json?.success || json?.ok || json?.status === 'already_confirmed')) {
     try {
-      msg = JSON.parse(event.data);
-    } catch (err) {
-      console.error('❌ Failed to parse ws message:', err);
-      return;
-    }
+      await fetch('/api/notifications/subscription-confirmed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: finalWallet }),
+      });
+    } catch {}
 
-    const eventType = msg?.event;
-    if (eventType !== 'new-transaction') {
-      console.log('⚠️ Skipping non-transaction event:', eventType);
-      return;
-    }
+    setTimeout(() => {
+      try { ws.close(); } catch {}
+      window.location.replace('/dashboard');
+    }, 1500);
+  } else {
+    // optional: toast/log
+  }
+};
 
-    const txid = msg?.data?.txid;
-    const outputs = Array.isArray(msg?.data?.vout) ? msg.data.vout : [];
-
-    // Mempool lowercases bech32; normalize
-    const match = outputs.find(
-      (o) => String(o?.scriptpubkey_address || '').toLowerCase() === RA
-    );
-
-    console.log('🧾 Outputs:', outputs.map((o) => o?.scriptpubkey_address));
-    console.log('🎯 Expect:', receiveAddress);
-
-    if (!match || !txid) {
-      console.log('📭 No output matched receiveAddress or missing txid');
-      return;
-    }
-
-    // Debounce duplicate emits
-    if (seenTxids.has(txid)) {
-      console.log('🔁 Already handled txid, skipping:', txid);
-      return;
-    }
-
-    const receivedSats = Number(match.value ?? 0);
-    if (expectedSats && Number.isFinite(receivedSats) && receivedSats < expectedSats) {
-      console.warn(`💸 Received ${receivedSats} sats, expected ≥ ${expectedSats} — skipping verify`);
-      return;
-    }
-
-    console.log(`✅ Match! txid=${txid} sats=${receivedSats}${expectedSats ? ` (expected ≥ ${expectedSats})` : ''}`);
-    setPendingTxDetected?.(true);
-
-    // time window: new-transaction often lacks timestamps; use now
-    const nowSec = Math.floor(Date.now() / 1000);
-    const txTimeSec =
-      msg?.data?.status?.block_time ||
-      msg?.data?.status?.timestamp ||
-      nowSec;
-
-    if (sessionStartTime) {
-      const sessionStartSec = Math.floor(sessionStartTime / 1000);
-      if (txTimeSec < sessionStartSec - 5) {
-        console.warn('🕒 Transaction appears before session started, ignoring:', txid);
-        return;
-      }
-    }
-
-    // Mark as seen *before* network call to avoid repeated POSTs if the socket spams
-    seenTxids.add(txid);
-
-    // Allow backend fallback email if missing locally
-    const finalEmail = (email && email.includes('@')) ? email : 'unknown@blockrent.app';
-    const finalWallet = walletAddress || null;
-
-    const { ok, json } = await triggerVerify({
-      txid,
-      sessionId,
-      email: finalEmail,
-      walletAddress: finalWallet,
-    });
-
-    console.log('✅ Verification response:', json);
-
-    if (ok && (json?.success || json?.ok || json?.status === 'already_confirmed')) {
-      // fire-and-forget notification; non-fatal on error
-      try {
-        await fetch('/api/notifications/subscription-confirmed', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress: finalWallet }),
-        });
-      } catch (e) {
-        console.warn('📧 Notification call failed (non-fatal):', e);
-      }
-
-      setTimeout(() => {
-        try { ws.close(); } catch {}
-        console.log('🔁 Redirecting to dashboard after payment...');
-        window.location.replace('/dashboard');
-      }, 1500);
-    } else {
-      console.warn('❌ Verification failed or unexpected response:', json);
-      // optionally: show a UI toast instead of alert
-    }
-  };
 
   ws.onerror = (err) => {
     console.error('⚠️ WebSocket error:', err);
@@ -215,8 +199,9 @@ ws.onclose = (ev) => {
     wasClean: ev?.wasClean,
   });
   if (activeWs === ws) activeWs = null;
-  setListening?.(false); // optional: reflect closed state in UI
+  setListening?.(false); // triggers the effect to re-open for current session
 };
+
 
 
   return ws;

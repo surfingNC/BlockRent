@@ -160,7 +160,7 @@ router.post('/verify-payment', async (req, res) => {
       walletAddress,
       amountSats,
       type: subTier.type,
-      validUntil: new Date(Date.now() + subTier.durationDays * 24 * 60 * 60 * 1000),
+      validUntil: getExpirationDate(subTier),
       listingCount: subTier.listingCount,
     });
 
@@ -172,7 +172,7 @@ router.post('/verify-payment', async (req, res) => {
         walletAddress,
         amountSats,
         type: subTier.type,
-        validUntil: new Date(Date.now() + subTier.durationDays * 24 * 60 * 60 * 1000),
+        validUntil: getExpirationDate(subTier),
         listingCount: subTier.listingCount,
         confirmed: true,
       },
@@ -293,7 +293,7 @@ router.post('/verify-latest', async (req, res) => {
             walletAddress: nextWallet,
             amountSats: match.amountSats,
             type: subTier.type,
-            validUntil: new Date(Date.now() + subTier.durationDays * 24 * 60 * 60 * 1000),
+            validUntil: getExpirationDate(subTier),
             listingCount: subTier.listingCount,
             confirmed: true,
           },
