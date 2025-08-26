@@ -73,7 +73,6 @@ const startBtcPaymentListener = ({
   // normalize receiveAddress once
   const RA = String(receiveAddress).toLowerCase();
 
-  // Close any prior socket before opening a new one
   if (activeWs && activeWs.readyState === WebSocket.OPEN) {
     try {
       console.log('🔁 Closing previous active WebSocket');
@@ -81,8 +80,12 @@ const startBtcPaymentListener = ({
     } catch {}
   }
 
+  // New session: forget previously-seen txs so we don't suppress legitimate events
+  seenTxids.clear();
+
   const ws = new WebSocket('wss://mempool.space/api/v1/ws');
   activeWs = ws;
+
 
   ws.onopen = () => {
     console.log('🔌 WebSocket connected');

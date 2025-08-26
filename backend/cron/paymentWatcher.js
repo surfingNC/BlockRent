@@ -70,11 +70,12 @@ async function fetchIncomingTxs() {
 
       const confirmed = Boolean(tx?.status?.confirmed);
 
-      // If we've seen this tx before, try to hydrate from pending
+      // If we've seen this tx before, try to hydrate from PendingTx
       const pendingRecord = await PendingTx.findOne({ txId }).lean();
 
       let email = pendingRecord?.email || null;
       let walletAddress = pendingRecord?.walletAddress || null;
+      let sessionId = pendingRecord?.sessionId || null;  // ✅ define sessionId here
 
       // Best-effort "from" address from VINs (not authoritative)
       if (!walletAddress && Array.isArray(tx?.vin)) {
@@ -82,20 +83,6 @@ async function fetchIncomingTxs() {
         if (vinAddr) {
           walletAddress = vinAddr;
           console.log(`📬 Extracted sender wallet: ${walletAddress} from tx ${txId}`);
-        }
-      }
-
-      // Link session by walletAddress if none stored yet
-      let sessionId = pendingRecord?.sessionId || null;
-      if (!sessionId && walletAddress) {
-        const recentSess = await mongoose.connection.collection('paymentsessions').findOne({
-          walletAddress,
-          createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) }, // 15m window
-        });
-        if (recentSess?.sessionId) {
-          sessionId = recentSess.sessionId;
-          if (!email && recentSess.email) email = recentSess.email;
-          console.log(`✅ Linked tx ${txId} to session ${sessionId} via walletAddress`);
         }
       }
 
@@ -119,7 +106,6 @@ async function fetchIncomingTxs() {
         const existingPayment = await AgentPayment.findOne({ txId, confirmed: true }).lean();
         if (existingPayment) {
           debug(`⏩ Tx ${txId} already confirmed, skipping.`);
-          // ensure no stale pending remains
           await PendingTx.deleteOne({ txId });
           continue;
         }
@@ -136,10 +122,9 @@ async function fetchIncomingTxs() {
             listingCount: subTier.listingCount,
             confirmed: true,
           },
-          { upsert: true, new: true, runValidators: true } // ← validators
+          { upsert: true, new: true, runValidators: true }
         );
 
-        // send email only if we have a real address
         if (email && email !== 'unknown@blockrent.app' && email.includes('@')) {
           try {
             await sendConfirmationEmail(email, subTier);
@@ -160,7 +145,7 @@ async function fetchIncomingTxs() {
               email,
               amountSats,
               type: subTier.type,
-              ...(sessionId ? { sessionId } : {}),
+              ...(sessionId ? { sessionId } : {}),  // ✅ now safe
             },
             $setOnInsert: { createdAt: new Date() },
           },
@@ -173,6 +158,7 @@ async function fetchIncomingTxs() {
     console.error('❌ Error fetching address txs:', error?.message || error);
   }
 }
+
 
 async function checkPendingPayments() {
   debug('⏰ Checking pending transactions for confirmation...');

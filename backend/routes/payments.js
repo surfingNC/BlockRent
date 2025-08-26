@@ -87,21 +87,50 @@ router.post('/verify-payment', async (req, res) => {
     }
 
     if (!confirmed) {
-      // Save/refresh PendingTx (with sessionId for later hydration by the watcher)
+      // ---------- INSERTED: guarded PendingTx upsert ----------
       try {
-        console.log("💾 Upserting PendingTx with email:", email);
+        // Look for an existing pending for this tx
+        const existing = await PendingTx.findOne({ txId }).lean().catch(() => null);
+
+        // If this tx is already linked to a different session, don't relink it
+        if (existing && existing.sessionId && existing.sessionId !== sessionId) {
+          console.warn(
+            `🔒 Tx ${txId} already linked to session ${existing.sessionId}; refusing to relink to ${sessionId}`
+          );
+          return res.status(202).json({
+            pending: true,
+            message: 'Transaction already pending under a different session.',
+          });
+        }
+
+        // Preserve best-known email/wallet (don’t overwrite a real email with "unknown")
+        let nextEmail = email;
+        let nextWallet = walletAddress;
+
+        if (existing) {
+          if (existing.email && existing.email !== 'unknown@blockrent.app') {
+            nextEmail = existing.email;
+          }
+          if (existing.walletAddress) {
+            nextWallet = existing.walletAddress;
+          }
+        }
+
+        console.log("💾 Upserting PendingTx with:", {
+          txId, sessionId, email: nextEmail, walletAddress: nextWallet, amountSats, type: subTier.type
+        });
 
         await PendingTx.findOneAndUpdate(
           { txId },
           {
+            $setOnInsert: { createdAt: new Date() },
             $set: {
-              sessionId,         // keep the session link for hydration
-              email,             // may be 'unknown@blockrent.app'
-              walletAddress,
+              sessionId,               // keep the session link for hydration
+              email: nextEmail,        // may still be 'unknown@blockrent.app'
+              walletAddress: nextWallet,
               amountSats,
               type: subTier.type,
             },
-            $setOnInsert: { createdAt: new Date() },
           },
           { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
         );
@@ -115,6 +144,7 @@ router.post('/verify-payment', async (req, res) => {
         console.error('❌ Failed to save PendingTx:', dbErr);
         return res.status(500).json({ error: 'Database error saving pending transaction.' });
       }
+      // ---------- /INSERTED ----------
     }
 
     // Confirmed path — avoid duplicate emails/updates
@@ -172,21 +202,25 @@ router.post('/verify-payment', async (req, res) => {
   }
 });
 
+
 // POST /api/payments/verify-latest
 router.post('/verify-latest', async (req, res) => {
   try {
     const { sessionId, expectedSats, windowSec = 600 } = req.body; // 10 min default
     if (!sessionId) return res.status(400).json({ error: 'Missing sessionId' });
 
+    // 1) Validate session
     const session = await PaymentSession.findOne({
       sessionId,
-      createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) }
+      createdAt: { $gte: new Date(Date.now() - 15 * 60 * 1000) }, // 15 min window
     });
     if (!session) return res.status(400).json({ error: 'Invalid or expired session' });
 
+    // 2) Receiving address
     const addr = process.env.BTC_RECEIVE_ADDRESS;
     if (!addr) return res.status(500).json({ error: 'BTC_RECEIVE_ADDRESS missing' });
 
+    // 3) Find newest qualifying tx to our address
     const { data } = await axios.get(`https://mempool.space/api/address/${addr}/txs`, { timeout: 10000 });
     const now = Math.floor(Date.now() / 1000);
 
@@ -208,49 +242,77 @@ router.post('/verify-latest', async (req, res) => {
 
     if (!match) return res.status(404).json({ error: 'No recent matching tx found' });
 
+    // 4) Tier check
     const subTier = determineSubscription(match.amountSats);
     if (!subTier) return res.status(400).json({ error: 'Amount does not match any tier' });
+
+    // 5) Guarded PendingTx upsert (don’t relink across different sessions; preserve good data)
+    const existing = await PendingTx.findOne({ txId: match.txId }).lean().catch(() => null);
+
+    if (existing && existing.sessionId && existing.sessionId !== sessionId) {
+      console.warn(`🔒 Tx ${match.txId} already linked to session ${existing.sessionId}; refusing to relink to ${sessionId}`);
+      return res.status(202).json({
+        pending: true,
+        message: 'Transaction already pending under a different session.',
+        txId: match.txId,
+      });
+    }
+
+    // preserve best-known values
+    let nextEmail = session.email || 'unknown@blockrent.app';
+    let nextWallet = existing?.walletAddress || 'unknown';
+    if (existing?.email && existing.email !== 'unknown@blockrent.app') {
+      nextEmail = existing.email;
+    }
 
     await PendingTx.findOneAndUpdate(
       { txId: match.txId },
       {
+        $setOnInsert: { createdAt: new Date() },
         $set: {
           sessionId,
-          email: session.email || 'unknown@blockrent.app',
-          walletAddress: 'unknown',
+          email: nextEmail,
+          walletAddress: nextWallet,
           amountSats: match.amountSats,
           type: subTier.type,
         },
-        $setOnInsert: { createdAt: new Date() },
       },
       { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
     );
 
+    // 6) If already confirmed, mirror confirm path immediately
     if (match.confirmed) {
-      await AgentPayment.findOneAndUpdate(
-        { txId: match.txId },
-        {
-          txId: match.txId,
-          email: session.email,
-          walletAddress: 'unknown',
-          amountSats: match.amountSats,
-          type: subTier.type,
-          validUntil: new Date(Date.now() + subTier.durationDays * 24 * 60 * 60 * 1000),
-          listingCount: subTier.listingCount,
-          confirmed: true,
-        },
-        { upsert: true, new: true, runValidators: true }
-      );
+      // If a confirmed doc already exists, short-circuit
+      const already = await AgentPayment.findOne({ txId: match.txId, confirmed: true }).lean();
+      if (!already) {
+        await AgentPayment.findOneAndUpdate(
+          { txId: match.txId },
+          {
+            txId: match.txId,
+            email: nextEmail === 'unknown@blockrent.app' ? session.email : nextEmail,
+            walletAddress: nextWallet,
+            amountSats: match.amountSats,
+            type: subTier.type,
+            validUntil: new Date(Date.now() + subTier.durationDays * 24 * 60 * 60 * 1000),
+            listingCount: subTier.listingCount,
+            confirmed: true,
+          },
+          { upsert: true, new: true, runValidators: true }
+        );
+      }
+
       await PendingTx.deleteOne({ txId: match.txId }).catch(() => {});
       return res.json({ success: true, tier: subTier.type, status: 'confirmed' });
     }
 
+    // 7) Pending
     return res.status(202).json({ pending: true, tier: subTier.type, txId: match.txId });
   } catch (e) {
     console.error('verify-latest error:', e?.response?.data || e?.message || e);
     return res.status(500).json({ error: 'verify-latest failed' });
   }
 });
+
 
 
 
