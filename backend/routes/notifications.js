@@ -1,131 +1,118 @@
 // backend/routes/notifications.js
 import express from 'express';
-import mongoose from 'mongoose';
-import { Resend } from 'resend';
-
 import User from '../models/User.js';
 import AgentPayment from '../models/AgentPayment.js';
-import PendingTx from '../models/PendingTx.js';
+import { sendSubscriptionConfirmationEmail } from '../utils/mailer.js';
 
 const router = express.Router();
-const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Helper: resolve wallet/email from various hints
-async function resolveWalletAndEmail({ walletAddress, txId, email, sessionId }) {
-  let wa = walletAddress && walletAddress !== 'null' ? walletAddress : null;
-  let em = email && email !== 'null' ? email : null;
+/**
+ * Resolve a recipient + purchase (Stripe-only) from hints.
+ */
+async function resolveRecipientAndPurchase({
+  email,
+  txId,
+  checkoutSessionId,
+  invoiceId,
+  subscriptionId,
+}) {
+  let em = typeof email === 'string' && email !== 'null'
+    ? email.trim().toLowerCase()
+    : null;
 
-  // If we have a wallet but no email, try User by wallet
-  if (wa && !em) {
-    const u = await User.findOne({ walletAddress: wa }).lean();
-    if (u?.email) em = u.email;
-  }
+  // Prefer strongest identifiers first
+  let ap =
+    (txId && await AgentPayment.findOne({ txId }).lean()) ||
+    (checkoutSessionId && await AgentPayment.findOne({ checkoutSessionId }).lean()) ||
+    (invoiceId && await AgentPayment.findOne({ invoiceId }).lean()) ||
+    (subscriptionId && await AgentPayment.findOne({ subscriptionId }).lean()) ||
+    (em && await AgentPayment.findOne({ email: em, confirmed: true }).sort({ latestEventAt: -1, validUntil: -1 }).lean()) ||
+    null;
 
-  // Try resolve by txId via AgentPayment, then PendingTx
-  if ((!wa || !em) && txId) {
-    const ap = await AgentPayment.findOne({ txId }).lean();
-    if (ap) {
-      wa = wa || ap.walletAddress || null;
-      em = em || ap.email || null;
-    } else {
-      const p = await PendingTx.findOne({ txId }).lean();
-      if (p) {
-        wa = wa || p.walletAddress || null;
-        em = em || p.email || null;
-      }
-    }
-  }
+  // Finalize email from AgentPayment if not provided
+  if (!em && ap?.email) em = ap.email;
 
-  // Try paymentsessions collection via sessionId
-  if ((!wa || !em) && sessionId) {
-    try {
-      const sess = await mongoose.connection
-        .collection('paymentsessions')
-        .findOne({ sessionId });
-      if (sess) {
-        wa = wa || sess.walletAddress || null;
-        em = em || sess.email || null;
-      }
-    } catch (e) {
-      console.warn('[notifications] paymentsessions lookup failed:', e?.message);
-    }
-  }
-
-  // As a last pass, if we have an email, try User to get wallet/username
+  // Friendly display name
   let username = 'BlockRent Agent';
   if (em) {
     const u = await User.findOne({ email: em }).lean();
     if (u?.username) username = u.username;
-    if (!wa && u?.walletAddress) wa = u.walletAddress;
   }
 
-  return { walletAddress: wa, email: em, username };
+  return { email: em, username, agentPayment: ap };
 }
 
+/**
+ * POST /api/notifications/subscription-confirmed
+ * Body may include any of:
+ *  - email
+ *  - txId                (we store Stripe refs like session.id in txId)
+ *  - checkoutSessionId   (cs_...)
+ *  - invoiceId           (in_...)
+ *  - subscriptionId      (sub_...)
+ *  - planType            (fallback if AgentPayment not found)
+ */
 router.post('/subscription-confirmed', async (req, res) => {
   try {
-    const { walletAddress, txId, email, sessionId } = req.body || {};
+    const { email, txId, checkoutSessionId, invoiceId, subscriptionId, planType } = req.body || {};
 
-    // Derive wallet/email if not provided
-    const { walletAddress: wa, email: em, username } = await resolveWalletAndEmail({
-      walletAddress,
-      txId,
-      email,
-      sessionId,
-    });
+    const { email: em, username, agentPayment: ap } =
+      await resolveRecipientAndPurchase({ email, txId, checkoutSessionId, invoiceId, subscriptionId });
 
-    // Optionally include tier if we have a txId
-    let tier = null;
-    if (txId) {
-      const ap = await AgentPayment.findOne({ txId }).lean();
-      if (ap?.type) tier = ap.type;
-    }
-
-    // If we still don't have an email, don't fail—just report
     if (!em) {
-      console.warn(
-        '[notifications] subscription-confirmed: could not resolve email (wallet:%s, txId:%s, sessionId:%s)',
-        wa, txId, sessionId
-      );
+      console.warn('[notifications] subscription-confirmed: could not resolve email', {
+        txId, checkoutSessionId, invoiceId, subscriptionId,
+      });
       return res.json({
         ok: true,
         emailed: false,
         reason: 'email_not_found',
-        walletAddress: wa || null,
-        txId: txId || null,
-        sessionId: sessionId || null,
-        tier,
+        txId: txId ?? ap?.txId ?? null,
+        checkoutSessionId: checkoutSessionId ?? ap?.checkoutSessionId ?? null,
+        invoiceId: invoiceId ?? ap?.invoiceId ?? null,
+        subscriptionId: subscriptionId ?? ap?.subscriptionId ?? null,
       });
     }
 
-    // Send the email
-    await resend.emails.send({
-      from: 'BlockRent <noreply@blockrent.app>',
+    // Pull details from AgentPayment if available
+    const plan = ap?.type ?? planType ?? null;
+    const mode = ap?.mode ?? (plan === 'unlimited' ? 'subscription' : 'payment');
+    const validUntil = ap?.validUntil ?? null;
+    const amountCents = ap?.amountPaid ?? null;
+    const currency = ap?.currency ?? 'usd';
+    const ref = ap?.txId ?? txId ?? null;
+
+    // Send the confirmation email
+    const r = await sendSubscriptionConfirmationEmail({
       to: em,
-      subject: '✅ BlockRent Subscription Confirmed',
-      html: `
-        <div style="font-family: sans-serif; line-height: 1.6;">
-          <h2>🎉 Subscription Confirmed</h2>
-          <p>Hello ${username},</p>
-          <p>Your BlockRent subscription is now active. You can start listing your properties immediately.</p>
-          ${tier ? `<p><strong>Plan:</strong> ${tier}</p>` : ''}
-          ${wa ? `<p><strong>Wallet:</strong> ${wa}</p>` : ''}
-          ${txId ? `<p><strong>Transaction:</strong> ${txId}</p>` : ''}
-          <p>Thank you for using BlockRent!</p>
-          <hr />
-          <p style="font-size: 0.9em; color: #888;">This is an automated message. Please do not reply.</p>
-        </div>
-      `,
+      plan,
+      mode,
+      amountCents,
+      currency,
+      validUntil,
+      ref,
     });
 
+    // Mark that we sent a confirmation for this record (if we found one)
+    if (ap?._id && !ap.confirmationEmailSentAt) {
+      await AgentPayment.updateOne(
+        { _id: ap._id },
+        { $set: { confirmationEmailSentAt: new Date() } }
+      );
+    }
+
     return res.json({
-      ok: true,
-      emailed: true,
+      ok: Boolean(r.ok || r.skipped),
+      emailed: Boolean(r.ok),
       email: em,
-      walletAddress: wa || null,
-      txId: txId || null,
-      sessionId: sessionId || null,
-      tier,
+      username,
+      plan,
+      mode,
+      validUntil,
+      txId: ap?.txId ?? txId ?? null,
+      checkoutSessionId: ap?.checkoutSessionId ?? checkoutSessionId ?? null,
+      invoiceId: ap?.invoiceId ?? invoiceId ?? null,
+      subscriptionId: ap?.subscriptionId ?? subscriptionId ?? null,
     });
   } catch (err) {
     console.error('[notifications] subscription-confirmed error:', err);

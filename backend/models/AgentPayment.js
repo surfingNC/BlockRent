@@ -3,35 +3,63 @@ import mongoose from 'mongoose';
 
 const AgentPaymentSchema = new mongoose.Schema(
   {
-    walletAddress: { type: String, required: false, default: null }, // optional for promo redemptions
-    email: { type: String, required: true, index: true },
+    email:       { type: String, required: true, index: true },
 
-    // Guard duplicates at the DB level
-    txId: { type: String, required: true, unique: true, index: true },
+    // Unique identifier for the transaction / subscription event
+    txId:        { type: String, required: true, unique: true, index: true },
 
-    amountSats: { type: Number, required: true },
+    // Store Stripe amounts in minor units (e.g. cents for USD)
+    amountPaid:  { type: Number, required: true },
 
-    type: { type: String, enum: ['basic', 'pro', 'unlimited'], default: 'basic' },
+    currency:    { type: String, default: 'usd' },
 
-    validUntil: { type: Date, required: true, index: true }, // used by cleanup job
+    type:        { type: String, enum: ['basic', 'pro', 'unlimited'], required: true },
 
-    listingCount: { type: Number },
+    // Lifetime = null, otherwise subscription period end
+    validUntil:  { type: Date, default: null },
 
-    confirmed: { type: Boolean, default: false, index: true },
+    // null = Unlimited listings
+    listingCount:{ type: Number, default: null },
 
-    // Keep your explicit timestamp for backward compatibility (you could switch to {timestamps:true})
-    timestamp: { type: Date, default: Date.now },
+    confirmed:   { type: Boolean, default: false, index: true },
+
+    // Guard to prevent duplicate confirmation emails
+    confirmationEmailSentAt: { type: Date, default: null },
+
+    timestamp:   { type: Date, default: Date.now },
+
+    // Stripe metadata
+    provider:    { type: String, default: 'stripe', index: true },
+    mode:        { type: String, enum: ['payment', 'subscription'], default: 'payment', index: true },
+
+    priceId:           { type: String, default: null, index: true },   // e.g. price_xxx
+    productId:         { type: String, default: null, index: true },   // e.g. prod_xxx
+    checkoutSessionId: { type: String, default: null, index: true },   // cs_xxx
+    invoiceId:         { type: String, default: null, index: true },   // in_xxx
+    customerId:        { type: String, default: null, index: true },   // cus_xxx
+    subscriptionId:    { type: String, default: null, index: true },   // sub_xxx
+
+    subscriptionStatus: { type: String, default: null, index: true }, // active, trialing, canceled, etc.
+    currentPeriodStart: { type: Date, default: null },
+    currentPeriodEnd:   { type: Date, default: null },
+    cancelAtPeriodEnd:  { type: Boolean, default: null },
+
+    latestEventAt: { type: Date, default: null },
   },
-  {
-    versionKey: false,
-  }
+  { versionKey: false }
 );
 
-// Optional compound index for queries by email + recency
-AgentPaymentSchema.index({ email: 1, confirmed: 1, validUntil: -1 });
+// Helpful compound index
+AgentPaymentSchema.index(
+  { email: 1, confirmed: 1, validUntil: -1 },
+  { name: 'byUserConfirmedValidUntil' }
+);
 
-const AgentPayment =
-  mongoose.models.AgentPayment ||
-  mongoose.model('AgentPayment', AgentPaymentSchema);
+// Normalize email before save
+AgentPaymentSchema.pre('save', function (next) {
+  if (this.email) this.email = this.email.toLowerCase().trim();
+  next();
+});
 
-export default AgentPayment;
+export default mongoose.models.AgentPayment
+  || mongoose.model('AgentPayment', AgentPaymentSchema);

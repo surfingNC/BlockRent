@@ -1,3 +1,4 @@
+// src/pages/Login.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '../components/Header.js';
@@ -8,13 +9,59 @@ function Login() {
   const [btcPrice, setBtcPrice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
+
+  // Stripe activation banner state
+  const [activating, setActivating] = useState(false);
+  const [activationMsg, setActivationMsg] = useState('');
+
   const navigate = useNavigate();
 
-  // Fetch BTC price
+  // --- Stripe: confirm Checkout Session if redirected with ?session_id=... ---
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+
+    if (!sessionId) return;
+
+    (async () => {
+      setActivating(true);
+      setActivationMsg('Activating your subscription…');
+
+      try {
+        const res = await fetch(
+          `/api/stripe/confirm?session_id=${encodeURIComponent(sessionId)}`
+        );
+        const data = await res.json();
+
+        if (res.ok && data.ok) {
+          setActivationMsg('✅ Subscription activated! You can now log in.');
+          // Optional: flag for your dashboard to show a “Welcome” toast
+          localStorage.setItem('subscriptionJustActivated', '1');
+        } else {
+          setActivationMsg(
+            `⚠️ Could not finalize payment (${data?.error || 'unknown error'}).`
+          );
+        }
+      } catch (e) {
+        console.error('confirm failed', e);
+        setActivationMsg('⚠️ Network error while confirming payment.');
+      } finally {
+        setActivating(false);
+        // Clean the URL so refresh doesn’t repeat confirmation
+        const url = new URL(window.location.href);
+        url.searchParams.delete('session_id');
+        window.history.replaceState({}, '', url.pathname + url.search);
+      }
+    })();
+  }, []);
+
+  // Fetch BTC price (optional, you can delete this whole effect + UI if you want)
   useEffect(() => {
     const fetchBitcoinPrice = async () => {
       try {
-        const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+        const res = await fetch(
+          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd'
+        );
         const data = await res.json();
         setBtcPrice(data.bitcoin.usd);
         console.log('🪙 BTC price fetched:', data.bitcoin.usd);
@@ -41,7 +88,7 @@ function Login() {
       });
 
       const data = await res.json();
-      console.log('📨 Login response:', data); // Full response
+      console.log('📨 Login response:', data);
 
       if (res.ok && data.token) {
         localStorage.setItem('token', data.token);
@@ -90,6 +137,23 @@ function Login() {
         <div className="app-container">
           <div className="login-box">
             <h2 style={{ textAlign: 'center' }}>Login</h2>
+
+            {/* Stripe activation banner */}
+            {(activating || activationMsg) && (
+              <div
+                style={{
+                  marginBottom: '12px',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  background: '#eef6ff',
+                  color: '#1e3a8a',
+                  fontWeight: 500,
+                  textAlign: 'center',
+                }}
+              >
+                {activationMsg || 'Activating your subscription…'}
+              </div>
+            )}
 
             {btcPrice !== null && (
               <div
