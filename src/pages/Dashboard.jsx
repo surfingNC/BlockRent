@@ -21,7 +21,6 @@ function Dashboard() {
       return;
     }
 
-    // Debug token safely
     try {
       const decoded = jwtDecode(token);
       const now = Math.floor(Date.now() / 1000);
@@ -38,14 +37,12 @@ function Dashboard() {
       return;
     }
 
-    // One-time banner if we just confirmed via Stripe
     if (localStorage.getItem('subscriptionJustActivated') === '1') {
       setJustActivated(true);
       localStorage.removeItem('subscriptionJustActivated');
       setTimeout(() => setJustActivated(false), 6000);
     }
 
-    // 🎟️ Check subscription from Stripe-backed endpoint
     if (email) {
       fetch(`/api/stripe/status?email=${encodeURIComponent(email)}`)
         .then((res) => res.json())
@@ -67,7 +64,6 @@ function Dashboard() {
 
   if (loading) return <div>Loading Dashboard...</div>;
 
-  // Helpers
   const renderSubBadge = () => {
     if (!subscription || subscription.status !== 'active') {
       return (
@@ -159,7 +155,6 @@ function Dashboard() {
         >
           {renderSubBadge()}
 
-          {/* Optional: show listing count if your backend sends it */}
           {subscription?.status === 'active' && (
             <div style={{ marginBottom: 12, color: '#334155' }}>
               {subscription.listingCount == null
@@ -171,9 +166,16 @@ function Dashboard() {
           <button onClick={() => navigate('/subscribe')} style={btnStyle}>
             📬 {subscription?.status === 'active' ? 'Manage / Renew' : 'Subscribe'}
           </button>
+
           <button onClick={() => navigate('/list-your-home')} style={btnStyle}>
             🏠 List Your Home
           </button>
+
+          {/* 👇 NEW: Manage My Listings button */}
+          <button onClick={() => navigate('/manage-listings')} style={btnStyle}>
+            🧾 Manage My Listings
+          </button>
+
           <button onClick={handleLogout} style={btnStyle}>
             🔓 Logout
           </button>

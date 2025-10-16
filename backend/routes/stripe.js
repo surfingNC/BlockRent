@@ -23,7 +23,7 @@ const EMAIL_FROM = process.env.EMAIL_FROM || 'BlockRent <noreply@blockrent.app>'
  * - listingCount: Infinity shown as "Unlimited" to clients (we store null)
  */
 const PLANS = [
-  { type: 'basic',     label: 'Basic',     amountCents: 1000, currency: 'usd', listingCount: 1,        durationDays: null, mode: 'payment' },
+  { type: 'basic',     label: 'Basic',     amountCents: 100, currency: 'usd', listingCount: 1,        durationDays: null, mode: 'payment' },
   { type: 'pro',       label: 'Pro',       amountCents: 1500, currency: 'usd', listingCount: 5,        durationDays: null, mode: 'payment' },
   { type: 'unlimited', label: 'Unlimited', amountCents: 2500, currency: 'usd', listingCount: Infinity, durationDays: 30,   mode: 'payment' },
 ];

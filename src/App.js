@@ -7,6 +7,7 @@ import VerifyEmail from './pages/VerifyEmail.js';
 import ListingForm from './pages/ListingForm.jsx';
 import Listings from './pages/Listings.jsx';
 import Subscribe from './pages/Subscribe.jsx';
+import ManageListings from './pages/ManageListings.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import './styles/index.css';
 
@@ -49,6 +50,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Subscribe />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manage-listings"
+        element={
+          <ProtectedRoute>
+            <ManageListings />
           </ProtectedRoute>
         }
       />

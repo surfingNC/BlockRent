@@ -1,4 +1,4 @@
-// src\pages\Register.js
+// src/pages/Register.js
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header.js';
@@ -9,11 +9,17 @@ function Register() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordsMatch, setPasswordsMatch] = useState(true);
+  const [passwordTooShort, setPasswordTooShort] = useState(false);
   const navigate = useNavigate();
 
   const handleRegister = async (e) => {
     e.preventDefault();
     const trimmedUsername = username.trim();
+
+    if (password.length < 8) {
+      setPasswordTooShort(true);
+      return;
+    }
 
     if (password !== confirmPassword) {
       setPasswordsMatch(false);
@@ -46,25 +52,17 @@ function Register() {
     }
   };
 
+  const handlePasswordChange = (e) => {
+    const value = e.target.value;
+    setPassword(value);
+    setPasswordTooShort(value.length > 0 && value.length < 8);
+    setPasswordsMatch(value === confirmPassword);
+  };
+
   const handleConfirmPasswordChange = (e) => {
     const value = e.target.value;
     setConfirmPassword(value);
     setPasswordsMatch(password === value);
-  };
-
-  const handleResetDatabase = async () => {
-    if (window.confirm('Are you sure you want to reset the database?')) {
-      try {
-        const res = await fetch('http://localhost:5000/api/auth/reset', {
-          method: 'POST'
-        });
-        const data = await res.json();
-        alert(data.msg || 'Database reset');
-      } catch (err) {
-        console.error(err);
-        alert('Error resetting database');
-      }
-    }
   };
 
   return (
@@ -102,6 +100,7 @@ function Register() {
                   required
                 />
               </div>
+
               <div className="input-group">
                 <label htmlFor="username">Username</label>
                 <input
@@ -112,16 +111,23 @@ function Register() {
                   required
                 />
               </div>
+
               <div className="input-group">
                 <label htmlFor="password">Password</label>
                 <input
                   type="password"
                   id="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={handlePasswordChange}
                   required
                 />
+                {passwordTooShort && (
+                  <p style={{ color: 'red', fontSize: '0.9em', marginTop: '5px' }}>
+                    Password must be at least 8 characters long
+                  </p>
+                )}
               </div>
+
               <div className="input-group">
                 <label htmlFor="confirmPassword">Confirm Password</label>
                 <input
@@ -141,24 +147,14 @@ function Register() {
                   </p>
                 )}
               </div>
-              <button type="submit" disabled={!passwordsMatch}>Sign Up</button>
-            </form>
 
-            <button
-              type="button"
-              style={{
-                marginTop: '1rem',
-                backgroundColor: '#cc0000',
-                color: '#fff',
-                padding: '0.5rem 1rem',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }}
-              onClick={handleResetDatabase}
-            >
-              🔄 Reset Dev DB
-            </button>
+              <button
+                type="submit"
+                disabled={!passwordsMatch || passwordTooShort}
+              >
+                Sign Up
+              </button>
+            </form>
           </div>
         </div>
       </div>

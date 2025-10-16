@@ -25,6 +25,7 @@ import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 import accessCodeRoutes from './routes/accessCode.js';
 import stripeRoutes from './routes/stripe.js';
+import manageListingsRoutes from './routes/managelistings.js';
 
 // Models still in use (Stripe-driven access)
 import AgentPayment from './models/AgentPayment.js';
@@ -66,6 +67,7 @@ app.use('/api', applyRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/access-code', accessCodeRoutes);
+app.use('/api/managelistings', manageListingsRoutes);
 
 // ---------- DB & START ----------
 mongoose
