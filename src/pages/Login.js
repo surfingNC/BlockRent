@@ -35,7 +35,6 @@ function Login() {
 
         if (res.ok && data.ok) {
           setActivationMsg('✅ Subscription activated! You can now log in.');
-          // Optional: flag for your dashboard to show a “Welcome” toast
           localStorage.setItem('subscriptionJustActivated', '1');
         } else {
           setActivationMsg(
@@ -47,7 +46,6 @@ function Login() {
         setActivationMsg('⚠️ Network error while confirming payment.');
       } finally {
         setActivating(false);
-        // Clean the URL so refresh doesn’t repeat confirmation
         const url = new URL(window.location.href);
         url.searchParams.delete('session_id');
         window.history.replaceState({}, '', url.pathname + url.search);
@@ -55,7 +53,7 @@ function Login() {
     })();
   }, []);
 
-  // Fetch BTC price (optional, you can delete this whole effect + UI if you want)
+  // Fetch BTC price
   useEffect(() => {
     const fetchBitcoinPrice = async () => {
       try {
@@ -170,7 +168,9 @@ function Login() {
                 }}
               >
                 🪙 Current Bitcoin Price:{' '}
-                <span style={{ fontWeight: 'bold' }}>${btcPrice.toLocaleString()}</span>
+                <span style={{ fontWeight: 'bold' }}>
+                  ${btcPrice.toLocaleString()}
+                </span>
               </div>
             )}
 
@@ -206,6 +206,50 @@ function Login() {
             <p>
               Don't have an account? <Link to="/register">Sign Up</Link>
             </p>
+          </div>
+
+          {/* === Powered by UniSat section (centered below box) === */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              flexDirection: 'column',
+              marginTop: '2rem',
+              textAlign: 'center',
+            }}
+          >
+            <a
+              href="https://unisat.io/download"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                backgroundColor: '#f7931a',
+                color: '#fff',
+                textDecoration: 'none',
+                fontWeight: '600',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                transition: 'background-color 0.3s ease',
+                fontSize: '0.95rem',
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.backgroundColor = '#d67b00')
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.backgroundColor = '#f7931a')
+              }
+            >
+              <img
+                src={process.env.PUBLIC_URL + '/unisatlogo.jpg'}
+                alt="UniSat Logo"
+                style={{ height: '22px', width: 'auto' }}
+              />
+              <span>Powered by UniSat</span>
+            </a>
           </div>
         </div>
       </div>
