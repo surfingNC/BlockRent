@@ -1,4 +1,3 @@
-// backend/routes/auth.js
 import express from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -39,7 +38,7 @@ router.post('/register', async (req, res) => {
         email,
         username,
         password: hashedPassword,
-        code: verificationCode, // raw code (or hash it if you prefer)
+        code: verificationCode,
         expiresAt,
       },
       { upsert: true, new: true }
@@ -92,28 +91,55 @@ router.post('/verify-email/verify', async (req, res) => {
   }
 });
 
-// === 🔐 LOGIN ROUTE ===
+// === 🔐 LOGIN (accepts username OR email) ===
 router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
+  const { identifier, password } = req.body; // 'identifier' can be username or email
 
-  if (!username || !password) {
-    return res.status(400).json({ msg: 'Username and password are required' });
+  if (!identifier || !password) {
+    return res.status(400).json({ msg: 'Email/Username and password are required' });
   }
 
   try {
-    const user = await User.findOne({ username });
-    if (!user) return res.status(400).json({ msg: 'Invalid username or password' });
+    // Normalize the identifier for email matching
+    const normalized = identifier.trim().toLowerCase();
+
+    // Find by username OR email
+    const user = await User.findOne({
+      $or: [
+        { username: identifier },
+        { email: normalized }
+      ]
+    });
+
+    if (!user) {
+      console.log('❌ No user found for identifier:', identifier);
+      return res.status(400).json({ msg: 'Invalid username/email or password' });
+    }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) return res.status(400).json({ msg: 'Invalid username or password' });
+    if (!isMatch) {
+      console.log('❌ Password mismatch for:', identifier);
+      return res.status(400).json({ msg: 'Invalid username/email or password' });
+    }
 
     if (!user.isVerified) {
       return res.status(403).json({ msg: 'Email not verified. Please check your inbox.' });
     }
 
-    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign(
+      { id: user._id, username: user.username, email: user.email },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
 
-    res.status(200).json({ msg: 'Login successful', token, username: user.username, email: user.email });
+    console.log(`✅ Successful login for ${user.username} (${user.email})`);
+
+    res.status(200).json({
+      msg: 'Login successful',
+      token,
+      username: user.username,
+      email: user.email
+    });
   } catch (err) {
     console.error('❌ Login error:', err);
     res.status(500).json({ msg: 'Server error during login' });

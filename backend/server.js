@@ -1,4 +1,3 @@
-// backend/server.js
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -11,7 +10,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 
-// Routes
+// ---------- ROUTES ----------
 import authRoutes from './routes/auth.js';
 import protectedRoutes from './routes/protected.js';
 import verifyRoute from './routes/verify.js';
@@ -27,11 +26,16 @@ import accessCodeRoutes from './routes/accessCode.js';
 import stripeRoutes from './routes/stripe.js';
 import manageListingsRoutes from './routes/managelistings.js';
 
+// 🆕 NEW BlockLease dealership routes
+import dealerRoutes from './routes/dealers.js';
+import applicationRoutes from './routes/applications.js';
+
 // Models still in use (Stripe-driven access)
 import AgentPayment from './models/AgentPayment.js';
 
 const app = express();
 
+// ---------- DATABASE CONFIG ----------
 if (!process.env.MONGO_URI) {
   console.error('❌ MONGO_URI not found in environment variables');
   process.exit(1);
@@ -40,21 +44,26 @@ if (!process.env.MONGO_URI) {
 mongoose.set('strictQuery', true);
 
 // ---------- MIDDLEWARE ----------
-app.use(cors({ origin: [process.env.PUBLIC_APP_URL, 'http://localhost:3000'], credentials: true }));
+app.use(
+  cors({
+    origin: [process.env.PUBLIC_APP_URL, 'http://localhost:3000'],
+    credentials: true,
+  })
+);
 
-// IMPORTANT: Mount Stripe router (contains /webhook with express.raw) BEFORE global express.json()
+// ⚡ Mount Stripe router (contains /webhook with express.raw) BEFORE express.json()
 app.use('/api/stripe', stripeRoutes);
 
-// Global JSON parser for everything else
+// ✅ Global JSON parser (for everything else)
 app.use(express.json());
 
-// Simple request logger (after webhook so raw body isn’t consumed)
+// Simple logger
 app.use((req, _res, next) => {
   console.log(`📡 ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// ---------- ROUTES ----------
+// ---------- ROUTE MOUNTS ----------
 app.use('/api/auth', authRoutes);
 app.use('/api/protected', protectedRoutes);
 app.use('/api/auth/verify-email', verifyRoute);
@@ -69,7 +78,11 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/access-code', accessCodeRoutes);
 app.use('/api/managelistings', manageListingsRoutes);
 
-// ---------- DB & START ----------
+// 🆕 Mount new dealership & application APIs
+app.use('/api/dealers', dealerRoutes);
+app.use('/api/applications', applicationRoutes);
+
+// ---------- START SERVER ----------
 mongoose
   .connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 5000,
@@ -78,7 +91,6 @@ mongoose
   .then(async () => {
     console.log('✅ MongoDB connected successfully');
 
-    // Sync only the indexes we actually use now
     console.log('🧱 Syncing indexes...');
     await Promise.all([AgentPayment.syncIndexes()]);
     console.log('🧱 Indexes synced');
@@ -92,24 +104,18 @@ mongoose
     console.error('❌ MongoDB connection error:', err);
   });
 
-mongoose.connection.on('connected', () => {
-  console.log('✅ Mongoose connection established');
-});
-mongoose.connection.on('error', (err) => {
-  console.error('❌ Mongoose runtime error:', err);
-});
-mongoose.connection.on('disconnected', () => {
-  console.warn('⚠️ Mongoose disconnected from MongoDB');
-});
+// ---------- CONNECTION LOGGING ----------
+mongoose.connection.on('connected', () => console.log('✅ Mongoose connection established'));
+mongoose.connection.on('error', (err) => console.error('❌ Mongoose runtime error:', err));
+mongoose.connection.on('disconnected', () => console.warn('⚠️ Mongoose disconnected from MongoDB'));
 
-// Graceful shutdown
+// ---------- GRACEFUL SHUTDOWN ----------
 process.on('SIGINT', async () => {
   await mongoose.connection.close();
   console.log('🛑 Mongoose connection closed on app termination');
   process.exit(0);
 });
 
-// Catch unhandled rejections
 process.on('unhandledRejection', (err) => {
   console.error('🚨 Unhandled Promise Rejection:', err);
 });

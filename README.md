@@ -58,4 +58,4 @@
 
 ## 🌱 Vision
 
-BlockRent empowers Bitcoin-savvy landlords and tenants to engage in BTC-backed rentals — without middlemen, without escrow, and with transparent application proof. Beyond housing, the same decentralized leasing framework could revolutionize how car dealerships structure vehicle leases — integrating cryptocurrency in place of conventional credit systems.
+BlockRent empowers Bitcoin-savvy landlords and tenants to engage in BTC-backed rentals — without middlemen, without escrow, and with transparent application proof. Beyond housing, the same decentralized leasing framework could revolutionize how car dealerships structure vehicle leases — integrating Bitcoin in place of conventional credit systems.

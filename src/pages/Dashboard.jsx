@@ -1,4 +1,3 @@
-// src/pages/Dashboard.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardHeader from '../components/DashboardHeader';
@@ -124,20 +123,12 @@ function Dashboard() {
           </div>
         )}
 
+        {/* ----------- REAL ESTATE SECTION ----------- */}
+        <h2 style={{ marginTop: '2rem', color: '#1e293b' }}>🏠 Real Estate Listings</h2>
+
         <button
           onClick={() => navigate('/listings')}
-          style={{
-            backgroundColor: '#f7931a',
-            color: 'white',
-            padding: '12px 24px',
-            fontSize: '16px',
-            fontWeight: '600',
-            borderRadius: '8px',
-            border: 'none',
-            marginTop: '2.5rem',
-            marginBottom: '2rem',
-            cursor: 'pointer',
-          }}
+          style={mainBtn}
         >
           Browse Listings
         </button>
@@ -145,12 +136,13 @@ function Dashboard() {
         <div
           style={{
             backgroundColor: '#ffffffee',
-            padding: '40px',
+            padding: '30px',
             borderRadius: '16px',
             boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
             width: '100%',
             maxWidth: '420px',
             textAlign: 'center',
+            marginTop: '1.5rem',
           }}
         >
           {renderSubBadge()}
@@ -168,18 +160,46 @@ function Dashboard() {
           </button>
 
           <button onClick={() => navigate('/list-your-home')} style={btnStyle}>
-            🏠 List Your Home
+            🏡 List Your Home
           </button>
 
-          {/* 👇 NEW: Manage My Listings button */}
           <button onClick={() => navigate('/manage-listings')} style={btnStyle}>
             🧾 Manage My Listings
           </button>
+        </div>
 
-          <button onClick={handleLogout} style={btnStyle}>
-            🔓 Logout
+        {/* ----------- AUTOMOTIVE SECTION ----------- */}
+        <h2 style={{ marginTop: '3rem', color: '#1e293b' }}>🚗 Automotive Leasing</h2>
+
+        <div
+          style={{
+            backgroundColor: '#ffffffee',
+            padding: '30px',
+            borderRadius: '16px',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+            width: '100%',
+            maxWidth: '420px',
+            textAlign: 'center',
+            marginTop: '1.5rem',
+          }}
+        >
+          <button onClick={() => navigate('/car-listings')} style={btnStyle}>
+            🚘 Browse Dealerships
+          </button>
+
+          <button onClick={() => navigate('/list-your-dealership')} style={btnStyle}>
+            🏢 List Your Dealership
+          </button>
+
+          <button onClick={() => navigate('/dealer-dashboard')} style={btnStyle}>
+            🧰 Dealer Dashboard
           </button>
         </div>
+
+        {/* ----------- ACCOUNT SECTION ----------- */}
+        <button onClick={handleLogout} style={{ ...btnStyle, marginTop: '2.5rem' }}>
+          🔓 Logout
+        </button>
       </div>
     </div>
   );
@@ -194,6 +214,18 @@ const pill = ({ bg, color }) => ({
   marginBottom: '16px',
   display: 'inline-block',
 });
+
+const mainBtn = {
+  backgroundColor: '#f7931a',
+  color: 'white',
+  padding: '12px 24px',
+  fontSize: '16px',
+  fontWeight: '600',
+  borderRadius: '8px',
+  border: 'none',
+  marginTop: '1.5rem',
+  cursor: 'pointer',
+};
 
 const btnStyle = {
   backgroundColor: '#f7931a',

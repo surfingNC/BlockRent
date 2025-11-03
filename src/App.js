@@ -8,6 +8,9 @@ import ListingForm from './pages/ListingForm.jsx';
 import Listings from './pages/Listings.jsx';
 import Subscribe from './pages/Subscribe.jsx';
 import ManageListings from './pages/ManageListings.jsx';
+import CarListings from './pages/CarListings.jsx';
+import ListYourDealership from './pages/ListYourDealership.jsx';
+import DealerDashboard from './pages/DealerDashboard.jsx';   
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import './styles/index.css';
 
@@ -29,6 +32,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/list-your-home"
         element={
@@ -37,6 +41,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/listings"
         element={
@@ -45,6 +50,34 @@ function App() {
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/car-listings"
+        element={
+          <ProtectedRoute>
+            <CarListings />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/list-your-dealership"
+        element={
+          <ProtectedRoute>
+            <ListYourDealership />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/dealer-dashboard"
+        element={
+          <ProtectedRoute>
+            <DealerDashboard />
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/subscribe"
         element={
@@ -53,6 +86,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+
       <Route
         path="/manage-listings"
         element={

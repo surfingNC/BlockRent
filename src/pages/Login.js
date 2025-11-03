@@ -1,10 +1,9 @@
-// src/pages/Login.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '../components/Header.js';
 
 function Login() {
-  const [username, setUsername] = useState('');
+  const [identifier, setIdentifier] = useState(''); // <-- renamed from username
   const [password, setPassword] = useState('');
   const [btcPrice, setBtcPrice] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -53,7 +52,7 @@ function Login() {
     })();
   }, []);
 
-  // Fetch BTC price
+  // --- Fetch BTC price ---
   useEffect(() => {
     const fetchBitcoinPrice = async () => {
       try {
@@ -73,6 +72,7 @@ function Login() {
     return () => clearInterval(interval);
   }, []);
 
+  // --- Handle login submission ---
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -82,7 +82,10 @@ function Login() {
       const res = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: username.trim(), password }),
+        body: JSON.stringify({
+          identifier: identifier.trim(), // 👈 can be username or email
+          password,
+        }),
       });
 
       const data = await res.json();
@@ -153,6 +156,7 @@ function Login() {
               </div>
             )}
 
+            {/* BTC Price */}
             {btcPrice !== null && (
               <div
                 style={{
@@ -174,15 +178,17 @@ function Login() {
               </div>
             )}
 
+            {/* Login Form */}
             <form onSubmit={handleSubmit}>
               {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
+
               <div className="input-group">
-                <label htmlFor="username">Username</label>
+                <label htmlFor="identifier">Email or Username</label>
                 <input
                   type="text"
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  id="identifier"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   required
                 />
               </div>
