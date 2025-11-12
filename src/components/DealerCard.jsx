@@ -1,35 +1,60 @@
 import React from 'react';
 
 function DealerCard({ dealer, onApply }) {
+  const {
+    dealershipName,
+    address,
+    zipCode,
+    contactEmail,
+    images = [],
+    subscriptionType,
+    acceptingApplications,
+  } = dealer;
+
+  const firstImage =
+    images && images.length > 0
+      ? images[0]
+      : 'https://via.placeholder.com/400x250?text=No+Image';
+
   return (
-    <div className="dealer-card border rounded-lg p-4 shadow-sm bg-white">
-      <h3 className="text-lg font-semibold">{dealer.dealershipName}</h3>
-      <p className="text-sm text-gray-600">{dealer.address}</p>
-      <p className="text-sm text-gray-500 mt-1">
-        Subscription: {dealer.subscriptionType} ({new Date(dealer.subscriptionValidUntil).toLocaleDateString()})
-      </p>
+    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
+      {/* 🖼️ Dealer Image */}
+      <img
+        src={firstImage}
+        alt={dealershipName}
+        className="w-full h-48 object-cover"
+      />
 
-      <div className="flex flex-wrap gap-2 mt-3">
-        {dealer.images?.map((img, i) => (
-          <img
-            key={i}
-            src={img}
-            alt={`Dealer ${i + 1}`}
-            className="w-24 h-24 object-cover rounded-md"
-          />
-        ))}
+      {/* 🏢 Dealer Info */}
+      <div className="p-4">
+        <h2 className="text-lg font-semibold mb-1">{dealershipName}</h2>
+
+        <p className="text-gray-600 text-sm">{address}</p>
+        {zipCode && <p className="text-gray-600 text-sm">ZIP: {zipCode}</p>}
+
+        <p className="text-gray-500 text-xs mt-2">
+          Subscription: {subscriptionType?.toUpperCase() || 'N/A'}
+        </p>
+
+        {/* 📨 Contact Email */}
+        <p className="text-gray-600 text-xs mt-1 truncate">
+          <span className="font-medium">Email:</span> {contactEmail}
+        </p>
+
+        {/* 🟢 Apply Button */}
+        {acceptingApplications ? (
+          <button
+            onClick={() => onApply(dealer)}
+            className="mt-3 w-full bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600"
+          >
+            Apply for Rent
+          </button>
+        ) : (
+          <p className="mt-3 text-red-500 text-sm text-center">
+            Not accepting applications
+          </p>
+        )}
       </div>
-
-      {dealer.acceptingApplications ? (
-        <button
-          onClick={() => onApply(dealer)}
-          className="mt-4 bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600"
-        >
-          Apply with Bitcoin Holdings
-        </button>
-      ) : (
-        <p className="mt-4 text-red-500 text-sm">Not accepting applications</p>
-      )}
     </div>
   );
 }

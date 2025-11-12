@@ -126,48 +126,45 @@ function Dashboard() {
         {/* ----------- REAL ESTATE SECTION ----------- */}
         <h2 style={{ marginTop: '2rem', color: '#1e293b' }}>🏠 Real Estate Listings</h2>
 
-        <button
-          onClick={() => navigate('/listings')}
-          style={mainBtn}
-        >
-          Browse Listings
-        </button>
-
         <div
-          style={{
-            backgroundColor: '#ffffffee',
-            padding: '30px',
-            borderRadius: '16px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-            width: '100%',
-            maxWidth: '420px',
-            textAlign: 'center',
-            marginTop: '1.5rem',
-          }}
+                style={{
+                        backgroundColor: '#ffffffee',
+                        padding: '30px',
+                        borderRadius: '16px',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+                        width: '100%',
+                        maxWidth: '420px',
+                        textAlign: 'center',
+                        marginTop: '1.5rem',
+                }}
         >
-          {renderSubBadge()}
+                {renderSubBadge()}
 
-          {subscription?.status === 'active' && (
-            <div style={{ marginBottom: 12, color: '#334155' }}>
-              {subscription.listingCount == null
-                ? 'Listings: Unlimited'
-                : `Listings remaining: ${subscription.listingCount}`}
-            </div>
-          )}
+                {subscription?.status === 'active' && (
+                        <div style={{ marginBottom: 12, color: '#334155' }}>
+                                {subscription.listingCount == null
+                                        ? 'Listings: Unlimited'
+                                        : `Listings remaining: ${subscription.listingCount}`}
+                        </div>
+                )}
 
-          <button onClick={() => navigate('/subscribe')} style={btnStyle}>
-            📬 {subscription?.status === 'active' ? 'Manage / Renew' : 'Subscribe'}
-          </button>
+                {/* ✅ Moved inside this card */}
+                <button onClick={() => navigate('/listings')} style={btnStyle}>
+                        🔍 Browse Listings
+                </button>
 
-          <button onClick={() => navigate('/list-your-home')} style={btnStyle}>
-            🏡 List Your Home
-          </button>
+                <button onClick={() => navigate('/subscribe')} style={btnStyle}>
+                        📬 {subscription?.status === 'active' ? 'Renew Subscription' : 'Subscribe'}
+                </button>
 
-          <button onClick={() => navigate('/manage-listings')} style={btnStyle}>
-            🧾 Manage My Listings
-          </button>
+                <button onClick={() => navigate('/list-your-home')} style={btnStyle}>
+                        🏡 List Your Home
+                </button>
+
+                <button onClick={() => navigate('/manage-listings')} style={btnStyle}>
+                        🧾 Manage My Listings
+                </button>
         </div>
-
         {/* ----------- AUTOMOTIVE SECTION ----------- */}
         <h2 style={{ marginTop: '3rem', color: '#1e293b' }}>🚗 Automotive Leasing</h2>
 
@@ -214,18 +211,6 @@ const pill = ({ bg, color }) => ({
   marginBottom: '16px',
   display: 'inline-block',
 });
-
-const mainBtn = {
-  backgroundColor: '#f7931a',
-  color: 'white',
-  padding: '12px 24px',
-  fontSize: '16px',
-  fontWeight: '600',
-  borderRadius: '8px',
-  border: 'none',
-  marginTop: '1.5rem',
-  cursor: 'pointer',
-};
 
 const btnStyle = {
   backgroundColor: '#f7931a',

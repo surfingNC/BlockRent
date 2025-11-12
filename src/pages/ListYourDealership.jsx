@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import Header from '../components/Header';
+import Header from '../components/DashboardHeader';
 import '../styles/index.css';
 
 function ListYourDealership() {
   const [dealershipName, setDealershipName] = useState('');
   const [address, setAddress] = useState('');
+  const [zipCode, setZipCode] = useState(''); // ✅ NEW
   const [contactEmail, setContactEmail] = useState('');
   const [subscriptionType, setSubscriptionType] = useState('monthly');
   const [images, setImages] = useState([]);
@@ -20,7 +21,7 @@ function ListYourDealership() {
     setImages(files);
   };
 
-  // ✅ FIXED: Upload images to S3 using fileName/fileType and uploadUrl
+  // ✅ Upload images to S3
   const uploadImagesToS3 = async () => {
     const uploadedUrls = [];
 
@@ -30,7 +31,6 @@ function ListYourDealership() {
         const fileType = encodeURIComponent(file.type);
 
         const res = await fetch(`/api/s3/upload-url?fileName=${fileName}&fileType=${fileType}`);
-
         if (!res.ok) {
           console.error('❌ Failed to get S3 upload URL:', await res.text());
           continue;
@@ -53,7 +53,7 @@ function ListYourDealership() {
           continue;
         }
 
-        uploadedUrls.push(uploadUrl.split('?')[0]); // remove query params
+        uploadedUrls.push(uploadUrl.split('?')[0]); // strip query params
         console.log(`✅ Uploaded ${file.name} successfully`);
       } catch (err) {
         console.error('❌ Error uploading image:', err);
@@ -63,7 +63,7 @@ function ListYourDealership() {
     return uploadedUrls;
   };
 
-  // Submit dealership info
+  // ✅ Submit dealership info
   const handleSubmit = async (e) => {
     e.preventDefault();
     setUploading(true);
@@ -81,7 +81,8 @@ function ListYourDealership() {
         body: JSON.stringify({
           dealershipName,
           address,
-          contactEmail: contactEmail || email, // fallback to user email
+          zipCode, // ✅ include ZIP
+          contactEmail: contactEmail || email, // fallback to logged-in user email
           subscriptionType,
           images: uploadedUrls,
         }),
@@ -93,6 +94,7 @@ function ListYourDealership() {
         setStatus('✅ Dealership listed successfully!');
         setDealershipName('');
         setAddress('');
+        setZipCode('');
         setImages([]);
       } else {
         setStatus(`❌ ${data.error || 'Failed to list dealership'}`);
@@ -133,6 +135,16 @@ function ListYourDealership() {
             className="border rounded px-3 py-2"
           />
 
+          <label>ZIP Code</label>
+          <input
+            type="text"
+            value={zipCode}
+            onChange={(e) => setZipCode(e.target.value)}
+            required
+            placeholder="e.g. 27609"
+            className="border rounded px-3 py-2"
+          />
+
           <label>Contact Email</label>
           <input
             type="email"
@@ -163,7 +175,7 @@ function ListYourDealership() {
 
           {images.length > 0 && (
             <div className="flex gap-2 mt-2 flex-wrap">
-              {Array.from(images).map((file, idx) => (
+              {images.map((file, idx) => (
                 <img
                   key={idx}
                   src={URL.createObjectURL(file)}

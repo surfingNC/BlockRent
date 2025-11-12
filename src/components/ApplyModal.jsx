@@ -62,20 +62,69 @@ function ApplyModal({ dealer, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-3">
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 2000,
+      }}
+    >
+      <div
+        style={{
+          backgroundColor: 'white',
+          borderRadius: '10px',
+          padding: '2rem',
+          width: '90%',
+          maxWidth: '420px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
+          position: 'relative',
+          animation: 'fadeIn 0.3s ease',
+        }}
+      >
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            background: 'none',
+            border: 'none',
+            fontSize: '20px',
+            cursor: 'pointer',
+            color: '#444',
+          }}
+        >
+          ✖
+        </button>
+
+        <h2
+          style={{
+            fontSize: '1.25rem',
+            fontWeight: '600',
+            textAlign: 'center',
+            marginBottom: '1rem',
+          }}
+        >
           Apply to {dealer.dealershipName}
         </h2>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <label>Email:</label>
           <input
             type="email"
             value={email}
-            onChange={e => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value)}
             required
-            className="border rounded px-2 py-1"
+            style={{
+              border: '1px solid #ccc',
+              borderRadius: '6px',
+              padding: '0.4rem',
+            }}
           />
 
           <label>Bitcoin Wallet:</label>
@@ -83,12 +132,23 @@ function ApplyModal({ dealer, onClose }) {
             type="text"
             value={btcAddress}
             readOnly
-            className="border rounded px-2 py-1"
+            style={{
+              border: '1px solid #ccc',
+              borderRadius: '6px',
+              padding: '0.4rem',
+            }}
           />
           <button
             type="button"
             onClick={handleUniSatConnect}
-            className="bg-gray-700 text-white py-1 px-3 rounded"
+            style={{
+              backgroundColor: '#374151',
+              color: 'white',
+              padding: '0.4rem',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              border: 'none',
+            }}
           >
             Connect UniSat
           </button>
@@ -98,34 +158,47 @@ function ApplyModal({ dealer, onClose }) {
             type="text"
             value={btcHoldings}
             readOnly
-            className="border rounded px-2 py-1"
+            style={{
+              border: '1px solid #ccc',
+              borderRadius: '6px',
+              padding: '0.4rem',
+            }}
           />
 
           <label>Message (optional):</label>
           <textarea
             value={message}
-            onChange={e => setMessage(e.target.value)}
+            onChange={(e) => setMessage(e.target.value)}
             rows="3"
-            className="border rounded px-2 py-1"
+            style={{
+              border: '1px solid #ccc',
+              borderRadius: '6px',
+              padding: '0.4rem',
+              resize: 'none',
+            }}
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600"
+            style={{
+              backgroundColor: '#f59e0b',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '0.6rem',
+              fontWeight: '500',
+              cursor: 'pointer',
+              marginTop: '0.5rem',
+            }}
           >
             {loading ? 'Submitting...' : 'Submit Application'}
           </button>
 
-          {status && <p className="text-center mt-2">{status}</p>}
+          {status && (
+            <p style={{ textAlign: 'center', marginTop: '0.5rem' }}>{status}</p>
+          )}
         </form>
-
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-600 hover:text-black"
-        >
-          ✖
-        </button>
       </div>
     </div>
   );
