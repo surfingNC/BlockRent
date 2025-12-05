@@ -6,6 +6,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 dotenv.config({ path: join(__dirname, '.env') });
 
+console.log(`🔐 Stripe mode: ${process.env.STRIPE_MODE}`);
+
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -24,14 +26,22 @@ import notificationRoutes from './routes/notifications.js';
 import profileRoutes from './routes/profile.js';
 import accessCodeRoutes from './routes/accessCode.js';
 import stripeRoutes from './routes/stripe.js';
+import stripeWebhook from './routes/stripeWebhook.js';
 import manageListingsRoutes from './routes/managelistings.js';
 
+
 // 🆕 NEW BlockLease dealership routes
-import dealerRoutes from './routes/dealers.js';
 import applicationRoutes from './routes/applications.js';
+import dealersRoutes from './routes/dealers.js';
 
 // Models still in use (Stripe-driven access)
 import AgentPayment from './models/AgentPayment.js';
+
+import Stripe from 'stripe';
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY_TEST);
+
+stripe.customers.list({ limit: 5 }).then(r => console.log("Customers:", r.data));
+
 
 const app = express();
 
@@ -51,10 +61,12 @@ app.use(
   })
 );
 
-// ⚡ Mount Stripe router (contains /webhook with express.raw) BEFORE express.json()
-app.use('/api/stripe', stripeRoutes);
 
-// ✅ Global JSON parser (for everything else)
+
+// 1️⃣ Webhook FIRST — raw body, unique mount path
+app.use('/api/stripe/webhook', stripeWebhook);
+
+// 2️⃣ Standard JSON parser for everything else
 app.use(express.json());
 
 // Simple logger
@@ -62,6 +74,11 @@ app.use((req, _res, next) => {
   console.log(`📡 ${req.method} ${req.originalUrl}`);
   next();
 });
+
+// 3️⃣ Stripe normal routes (sessions, subscriptions, status)
+app.use('/api/stripe', stripeRoutes);
+
+
 
 // ---------- ROUTE MOUNTS ----------
 app.use('/api/auth', authRoutes);
@@ -78,8 +95,9 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/access-code', accessCodeRoutes);
 app.use('/api/managelistings', manageListingsRoutes);
 
+
 // 🆕 Mount new dealership & application APIs
-app.use('/api/dealers', dealerRoutes);
+app.use('/api/dealers', dealersRoutes);
 app.use('/api/applications', applicationRoutes);
 
 // ---------- START SERVER ----------

@@ -1,6 +1,7 @@
+// src/pages/CarListings.jsx
 import React, { useState } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
-import ApplyModal from '../components/ApplyModal'; // ✅ use your existing UniSat modal
+import ApplyModal from '../components/ApplyModal';
 
 function CarListings() {
   const [dealers, setDealers] = useState([]);
@@ -32,7 +33,7 @@ function CarListings() {
       setDealers(data.dealers || []);
       setStatus(
         data.dealers?.length
-          ? `✅ Found ${data.dealers.length} dealership(s) within ${radius} miles of ${zipInput}.`
+          ? `✅ Found ${data.dealers.length} dealership(s) within ${radius} miles.`
           : `No dealerships found within ${radius} miles of ${zipInput}.`
       );
     } catch (err) {
@@ -101,10 +102,9 @@ function CarListings() {
           </button>
         </div>
 
-        {/* 🏁 Status message */}
         {status && <p style={{ textAlign: 'center', marginTop: '1rem' }}>{status}</p>}
 
-        {/* 🚗 Dealer Listings */}
+        {/* 🚗 Dealership Results */}
         {zipInput === '' ? (
           <p style={{ textAlign: 'center', color: '#888', marginTop: '2rem' }}>
             Please enter a ZIP code and click "Search" to view dealerships nearby.
@@ -120,7 +120,11 @@ function CarListings() {
                 dealer={dealer}
                 zipRef={zipInput}
                 setLightbox={setLightbox}
-                openApply={() => setApplyModal({ open: true, dealer })}
+                openApply={() => {
+                  if (dealer.acceptingApplications) {
+                    setApplyModal({ open: true, dealer });
+                  }
+                }}
               />
               {index < dealers.length - 1 && <hr style={{ margin: '2rem 0' }} />}
             </div>
@@ -136,7 +140,7 @@ function CarListings() {
           />
         )}
 
-        {/* 💬 Application Modal (UniSat) */}
+        {/* 💬 Application Modal */}
         {applyModal.open && (
           <ApplyModal
             dealer={applyModal.dealer}
@@ -151,18 +155,22 @@ function CarListings() {
 function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
   const [currentImage, setCurrentImage] = useState(0);
 
-  // Support different image field formats (imageUrls, images, photos, etc.)
+  const inactive = dealer.acceptingApplications === false;
+
   const imageList =
-    dealer.imageUrls ||
     dealer.images ||
+    dealer.imageUrls ||
     dealer.photos ||
     (dealer.imageUrl ? [dealer.imageUrl] : []);
 
   const hasImages = imageList && imageList.length > 0;
 
   const nextImage = () =>
+    !inactive &&
     setCurrentImage((prev) => (prev + 1) % (imageList?.length || 1));
+
   const prevImage = () =>
+    !inactive &&
     setCurrentImage(
       (prev) => (prev - 1 + (imageList?.length || 1)) % (imageList?.length || 1)
     );
@@ -174,8 +182,29 @@ function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
         borderRadius: '8px',
         padding: '1rem',
         background: '#fff',
+        opacity: inactive ? 0.6 : 1,
+        position: 'relative',
       }}
     >
+      {/* ⛔ Inactive Ribbon */}
+      {inactive && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            left: -30,
+            backgroundColor: '#dc2626',
+            color: 'white',
+            padding: '4px 38px',
+            transform: 'rotate(-45deg)',
+            fontSize: '0.75rem',
+            fontWeight: '600',
+          }}
+        >
+          Not Accepting
+        </div>
+      )}
+
       {hasImages && (
         <div
           style={{
@@ -194,13 +223,16 @@ function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
               height: '100%',
               objectFit: 'cover',
               borderRadius: '8px',
-              cursor: 'pointer',
+              cursor: inactive ? 'default' : 'pointer',
             }}
             onClick={() =>
+              !inactive &&
               setLightbox({ open: true, images: imageList, index: currentImage })
             }
           />
-          {imageList.length > 1 && (
+
+          {/* Image Navigation */}
+          {imageList.length > 1 && !inactive && (
             <>
               <button
                 onClick={prevImage}
@@ -240,6 +272,7 @@ function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
               </button>
             </>
           )}
+
           <div style={{ textAlign: 'center', marginTop: '5px' }}>
             {currentImage + 1}/{imageList.length} photos
           </div>
@@ -249,27 +282,28 @@ function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
       <h3>{dealer.dealershipName}</h3>
       <p>{dealer.address}</p>
       <p>ZIP: {dealer.zipCode}</p>
-      {dealer.distance !== undefined && (
-        <p style={{ fontStyle: 'italic', color: '#555' }}>
-          Approx. {dealer.distance} miles from {zipRef}
-        </p>
-      )}
-      <p>Subscription: {dealer.subscriptionType}</p>
+
+      <p style={{ color: '#555' }}>
+        Subscription: <span style={{ fontWeight: 600 }}>active</span>
+      </p>
+
+
       <p>Email: {dealer.contactEmail}</p>
 
       <button
         onClick={openApply}
+        disabled={inactive}
         style={{
           marginTop: '10px',
-          background: '#f59e0b',
+          background: inactive ? '#9ca3af' : '#f59e0b',
           color: 'white',
           padding: '0.5rem 1rem',
           border: 'none',
           borderRadius: '5px',
-          cursor: 'pointer',
+          cursor: inactive ? 'not-allowed' : 'pointer',
         }}
       >
-        Apply for Lease
+        {inactive ? 'Applications Closed' : 'Apply for Lease'}
       </button>
     </div>
   );
@@ -309,6 +343,7 @@ function Lightbox({ images, index, setLightbox }) {
       >
         ×
       </button>
+
       <button
         onClick={prev}
         style={{
@@ -322,11 +357,13 @@ function Lightbox({ images, index, setLightbox }) {
       >
         &lt;
       </button>
+
       <img
         src={images[current]}
         alt="Dealer"
         style={{ maxWidth: '90%', maxHeight: '90%' }}
       />
+
       <button
         onClick={next}
         style={{

@@ -15,11 +15,16 @@ function Login() {
 
   const navigate = useNavigate();
 
-  // --- Stripe: confirm Checkout Session if redirected with ?session_id=... ---
+  // --- Stripe: confirm REAL ESTATE Checkout Session ---
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get('session_id');
 
+    // 🚫 Do NOT confirm dealership subscriptions
+    const forDealership = params.get('for') === 'dealership';
+    if (forDealership) return;
+
+    // Only real estate checkout sessions call /confirm
     if (!sessionId) return;
 
     (async () => {
@@ -45,12 +50,16 @@ function Login() {
         setActivationMsg('⚠️ Network error while confirming payment.');
       } finally {
         setActivating(false);
+
+        // Clean the URL
         const url = new URL(window.location.href);
         url.searchParams.delete('session_id');
+        url.searchParams.delete('for');
         window.history.replaceState({}, '', url.pathname + url.search);
       }
     })();
   }, []);
+
 
   // --- Fetch BTC price ---
   useEffect(() => {

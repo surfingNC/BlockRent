@@ -1,60 +1,126 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/DealerDashboard.jsx
+import React, { useEffect, useState, useCallback } from 'react';
 import Header from '../components/DashboardHeader';
 import '../styles/index.css';
+import { jwtDecode } from 'jwt-decode';
 
 function DealerDashboard() {
   const [dealer, setDealer] = useState(null);
+  const [subStatus, setSubStatus] = useState(null);
   const [images, setImages] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [status, setStatus] = useState('');
+  const [statusMsg, setStatusMsg] = useState('');
 
-  const email = localStorage.getItem('email');
+  const token = localStorage.getItem('token');
+  let email = '';
 
-  // Fetch dealership info for the logged-in user
-  useEffect(() => {
-    if (!email) return;
-    const fetchDealer = async () => {
-      try {
-        const res = await fetch(`/api/dealers?email=${email}`);
-        const data = await res.json();
-        // Backend returns a single dealer object, not an array
-        if (data && data._id) setDealer(data);
-      } catch (err) {
-        console.error('Failed to fetch dealership info:', err);
+  // 🟩 Decode authenticated email from JWT
+  if (token) {
+    try {
+      const decoded = jwtDecode(token);
+      email = decoded.email?.toLowerCase() || '';
+    } catch (err) {
+      console.error('❌ Invalid token:', err);
+    }
+  }
+
+  const API = 'http://localhost:5000';
+
+  /* ------------------------------------------------------
+   * Fetch the user's dealership
+   * ------------------------------------------------------ */
+  const fetchDealer = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/api/dealers/mine`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const data = await res.json();
+      if (res.ok && data?.length > 0) {
+        setDealer(data[0]);
       }
-    };
-    fetchDealer();
+    } catch (err) {
+      console.error('Failed to fetch dealer:', err);
+    }
+  }, [token]);
+
+  /* ------------------------------------------------------
+   * Fetch Stripe dealership subscription
+   * ------------------------------------------------------ */
+  const fetchSubscription = useCallback(async () => {
+    if (!email) return;
+
+    try {
+      const res = await fetch(
+        `${API}/api/stripe/dealer-status?email=${encodeURIComponent(email)}`
+      );
+      const data = await res.json();
+
+      if (res.ok) {
+        setSubStatus(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch subscription:', err);
+    }
   }, [email]);
 
-  // Handle file selection
+  /* ------------------------------------------------------
+   * On mount
+   * ------------------------------------------------------ */
+  useEffect(() => {
+    fetchDealer();
+    fetchSubscription();
+  }, [fetchDealer, fetchSubscription]);
+
+  /* ------------------------------------------------------
+   * Protect entire page if subscription inactive
+   * ------------------------------------------------------ */
+  if (subStatus && subStatus.status !== 'active') {
+    return (
+      <div className="dealer-dashboard p-10 text-center">
+        <Header />
+        <h2 className="text-2xl font-semibold mt-10 text-red-700">
+          ❌ Dealership Subscription Required
+        </h2>
+        <p className="mt-4 text-gray-700">
+          You must have an active dealership subscription to access your dealer
+          dashboard.
+        </p>
+
+        <button
+          onClick={() => (window.location.href = '/subscribe?for=dealership')}
+          className="mt-6 bg-yellow-500 text-white px-5 py-2 rounded hover:bg-yellow-600"
+        >
+          Subscribe Now
+        </button>
+      </div>
+    );
+  }
+
+  /* ------------------------------------------------------
+   * Handle image input
+   * ------------------------------------------------------ */
   const handleImageChange = (e) => {
-    const files = Array.from(e.target.files);
-    setImages(files);
+    setImages(Array.from(e.target.files));
   };
 
-  // ✅ FIXED: Upload new images to S3 (matches backend params)
+  /* ------------------------------------------------------
+   * Upload to S3
+   * ------------------------------------------------------ */
   const uploadImagesToS3 = async () => {
-    const uploadedUrls = [];
-
+    const uploaded = [];
     for (const file of images) {
       try {
         const fileName = encodeURIComponent(file.name);
         const fileType = encodeURIComponent(file.type);
 
-        // backend expects fileName and fileType
-        const res = await fetch(`/api/s3/upload-url?fileName=${fileName}&fileType=${fileType}`);
+        const presignRes = await fetch(
+          `${API}/api/s3/upload-url?fileName=${fileName}&fileType=${fileType}`
+        );
 
-        if (!res.ok) {
-          console.error('❌ Failed to get S3 upload URL:', await res.text());
-          continue;
-        }
+        if (!presignRes.ok) continue;
 
-        const { uploadUrl } = await res.json();
-
-        if (!uploadUrl) {
-          console.error('❌ No uploadUrl returned from backend');
-          continue;
-        }
+        const { uploadUrl } = await presignRes.json();
 
         const uploadRes = await fetch(uploadUrl, {
           method: 'PUT',
@@ -62,72 +128,84 @@ function DealerDashboard() {
           body: file,
         });
 
-        if (!uploadRes.ok) {
-          console.error('❌ Upload to S3 failed:', uploadRes.statusText);
-          continue;
+        if (uploadRes.ok) {
+          uploaded.push(uploadUrl.split('?')[0]);
         }
-
-        uploadedUrls.push(uploadUrl.split('?')[0]);
-        console.log(`✅ Uploaded ${file.name}`);
       } catch (err) {
-        console.error('❌ Error uploading image:', err);
+        console.error('Upload failed:', err);
       }
     }
-
-    return uploadedUrls;
+    return uploaded;
   };
 
-  // Update dealership info (images or accept toggle)
+  /* ------------------------------------------------------
+   * Update dealer data
+   * ------------------------------------------------------ */
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!dealer?._id) return;
 
     setUploading(true);
-    setStatus('Updating dealership...');
+    setStatusMsg('Saving changes...');
 
     try {
-      let uploadedUrls = dealer.images || [];
+      let newImageUrls = dealer.images || [];
+
       if (images.length > 0) {
-        const newUrls = await uploadImagesToS3();
-        uploadedUrls = newUrls;
+        newImageUrls = await uploadImagesToS3();
       }
 
-      const res = await fetch(`/api/dealers/${dealer._id}/update`, {
+      const res = await fetch(`${API}/api/dealers/${dealer._id}/update`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          images: uploadedUrls,
+          images: newImageUrls,
           acceptingApplications: dealer.acceptingApplications,
         }),
       });
 
       const data = await res.json();
+
       if (res.ok) {
         setDealer(data);
-        setStatus('✅ Dealership updated successfully!');
         setImages([]);
+        setStatusMsg('✅ Updated successfully!');
       } else {
-        setStatus(`❌ ${data.error || 'Failed to update'}`);
+        setStatusMsg(`❌ ${data.error}`);
       }
     } catch (err) {
-      console.error('Error updating dealership:', err);
-      setStatus('❌ Error updating dealership.');
+      console.error(err);
+      setStatusMsg('❌ Error saving changes.');
     } finally {
       setUploading(false);
     }
   };
 
-  // Toggle accepting applications
+  /* ------------------------------------------------------
+   * Toggle "Accepting Applications"
+   * ------------------------------------------------------ */
   const toggleAccepting = () => {
     if (!dealer) return;
-    setDealer({ ...dealer, acceptingApplications: !dealer.acceptingApplications });
+
+    if (subStatus?.status !== 'active') {
+      alert('Subscription inactive — cannot accept applications.');
+      return;
+    }
+
+    setDealer({
+      ...dealer,
+      acceptingApplications: !dealer.acceptingApplications,
+    });
   };
 
   if (!dealer) {
     return (
       <div className="dealer-dashboard">
         <Header />
-        <p className="text-center mt-10">Loading your dealership info...</p>
+        <p className="text-center mt-10">Loading your dealership...</p>
       </div>
     );
   }
@@ -135,21 +213,38 @@ function DealerDashboard() {
   return (
     <div className="dealer-dashboard">
       <Header />
+
       <div className="max-w-3xl mx-auto mt-10 p-6 bg-white rounded-xl shadow-md">
-        <h1 className="text-2xl font-semibold mb-4 text-center">
-          {dealer.dealershipName || 'Your Dealership'}
+        <h1 className="text-2xl font-semibold mb-1 text-center">
+          {dealer.dealershipName}
         </h1>
+
         <p className="text-center text-gray-600 mb-4">{dealer.address}</p>
 
-        <div className="text-sm text-gray-500 mb-4 text-center">
-          <p><b>Email:</b> {dealer.contactEmail}</p>
-          <p>
-            <b>Subscription:</b> {dealer.subscriptionType} (
-            valid until{' '}
-            {new Date(dealer.subscriptionValidUntil).toLocaleDateString()})
-          </p>
+        {/* Subscription Status Badge */}
+        <div className="text-center mb-4">
+          <span
+            style={{
+              background: 'green',
+              color: 'white',
+              padding: '4px 10px',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              fontSize: '0.9rem',
+            }}
+          >
+            ACTIVE
+          </span>
+
+          {subStatus?.currentPeriodEnd && (
+            <p className="text-sm mt-2 text-gray-700">
+              Renewal Date:{' '}
+              <b>{new Date(subStatus.currentPeriodEnd).toLocaleDateString()}</b>
+            </p>
+          )}
         </div>
 
+        {/* Update Form */}
         <form onSubmit={handleUpdate} className="flex flex-col gap-4">
           <label className="font-medium">Update Dealership Images</label>
           <input
@@ -159,22 +254,24 @@ function DealerDashboard() {
             onChange={handleImageChange}
             className="border rounded px-3 py-2"
           />
+
           <div className="flex flex-wrap gap-2 mt-2">
             {dealer.images?.map((url, i) => (
               <img
                 key={i}
                 src={url}
-                alt={`Dealer ${i}`}
-                className="w-24 h-24 object-cover rounded-md border"
+                className="w-24 h-24 object-cover rounded border"
+                alt="Dealer"
               />
             ))}
+
             {images.length > 0 &&
-              Array.from(images).map((file, idx) => (
+              images.map((file, i) => (
                 <img
-                  key={idx}
+                  key={i}
                   src={URL.createObjectURL(file)}
-                  alt="preview"
-                  className="w-24 h-24 object-cover rounded-md border"
+                  className="w-24 h-24 object-cover rounded border"
+                  alt="Preview"
                 />
               ))}
           </div>
@@ -193,10 +290,12 @@ function DealerDashboard() {
             disabled={uploading}
             className="bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600"
           >
-            {uploading ? 'Updating...' : 'Save Changes'}
+            {uploading ? 'Saving...' : 'Save Changes'}
           </button>
 
-          {status && <p className="text-center mt-2">{status}</p>}
+          {statusMsg && (
+            <p className="text-center mt-2 font-semibold">{statusMsg}</p>
+          )}
         </form>
       </div>
     </div>

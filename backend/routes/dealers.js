@@ -1,88 +1,123 @@
+// backend/routes/dealers.js
 import express from 'express';
 import Dealer from '../models/Dealer.js';
-import { sendDealerWelcomeEmail } from '../utils/sendDealerWelcomeEmail.js';
 import zipcodes from 'zipcodes';
+import authMiddleware from '../middleware/authMiddleware.js';
+import { sendDealerWelcomeEmail } from '../utils/sendDealerWelcomeEmail.js';
+import AgentPayment from '../models/AgentPayment.js';
 
 const router = express.Router();
 
-/**
- * ✅ Search dealerships by proximity
- * Returns { count, dealers } so frontend can safely read data.dealers
- */
+/* ---------------------------------------------------------
+ * NORMALIZE EMAIL
+ * --------------------------------------------------------- */
+function normalize(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+/* ---------------------------------------------------------
+ * PUBLIC SEARCH — Only show ACTIVE dealership listings
+ * --------------------------------------------------------- */
 router.get('/search', async (req, res) => {
   try {
-    const { zip, radius } = req.query;
+    const { zip, radius = 25 } = req.query;
 
-    if (!zip) {
-      // no search yet → just send empty
-      return res.json({ count: 0, dealers: [] });
-    }
+    if (!zip) return res.json({ count: 0, dealers: [] });
 
-    // Validate ZIP
     const origin = zipcodes.lookup(zip);
-    if (!origin) {
-      return res.status(400).json({ error: 'Invalid ZIP code' });
-    }
+    if (!origin) return res.status(400).json({ error: 'Invalid ZIP code' });
 
-    // Find nearby ZIPs within radius (default 25 miles)
-    const nearbyZips = zipcodes.radius(zip, parseInt(radius) || 25) || [];
-    const zipStrings = nearbyZips.map(z => String(z)); // normalize to strings
+    const zipStrings = (zipcodes.radius(zip, Number(radius)) || [])
+      .map(String);
 
-    console.log(
-      `🔍 Searching within ${radius || 25} miles of ${zip} → ${zipStrings.length} ZIPs`
-    );
+    console.log(`🔍 Searching ${radius} miles around ${zip} → ${zipStrings.length} zips`);
 
-    // Find dealers whose ZIP is within the nearby list
-    let dealers = await Dealer.find({ zipCode: { $in: zipStrings } }).sort({ createdAt: -1 });
+    const now = new Date();
 
-    // ✅ Fallback to exact ZIP if radius query somehow misses it
+    // Only show live dealership listings
+    let dealers = await Dealer.find({
+      zipCode: { $in: zipStrings },
+      subscriptionStatus: 'active',
+      subscriptionValidUntil: { $gt: now },
+      acceptingApplications: true,
+    }).sort({ createdAt: -1 });
+
+    // Try exact ZIP fallback
     if (dealers.length === 0) {
-      const exact = await Dealer.find({ zipCode: String(zip) }).sort({ createdAt: -1 });
-      if (exact.length > 0) {
-        console.log(`📌 Fallback exact-zip query matched ${exact.length} dealer(s)`);
-        dealers = exact;
-      }
+      dealers = await Dealer.find({
+        zipCode: String(zip),
+        subscriptionStatus: 'active',
+        subscriptionValidUntil: { $gt: now },
+        acceptingApplications: true,
+      }).sort({ createdAt: -1 });
     }
 
     return res.json({ count: dealers.length, dealers });
   } catch (err) {
-    console.error('❌ Error searching dealers by ZIP:', err);
-    res.status(500).json({ error: 'Failed to search dealers' });
+    console.error('❌ Error searching dealers:', err);
+    res.status(500).json({ error: 'Failed to search dealerships' });
   }
 });
 
-/**
- * ✅ Create dealership (after subscription/payment)
- */
-router.post('/create', async (req, res) => {
+/* ---------------------------------------------------------
+ * CREATE DEALERSHIP — Requires active subscription
+ * --------------------------------------------------------- */
+router.post('/create', authMiddleware, async (req, res) => {
   console.log('📩 Dealer payload received:', req.body);
+
   try {
-    const { dealershipName, address, zipCode, contactEmail, subscriptionType, images } = req.body;
-    if (!dealershipName || !address || !contactEmail || !zipCode) {
+    const { dealershipName, address, zipCode, contactEmail, images } = req.body;
+
+    if (!dealershipName || !address || !zipCode) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    const normalizedEmail = contactEmail.toLowerCase().trim();
+    const normalizedEmail = normalize(contactEmail || req.user.email);
 
-    // Check for existing dealer (case-insensitive)
-    const existing = await Dealer.findOne({ contactEmail: normalizedEmail });
-    if (existing) {
-      return res.status(400).json({ error: 'Dealer already exists' });
+    // Check subscription in AgentPayment
+    const sub = await AgentPayment.findOne({
+      email: normalizedEmail,
+      category: 'dealership',
+    })
+      .sort({ latestEventAt: -1 })
+      .lean();
+
+    // Must wait for webhook to write period end
+    if (!sub || !sub.currentPeriodEnd) {
+      return res.status(403).json({
+        error: 'subscription_pending_webhook',
+        message: 'Your payment succeeded, but Stripe webhook is still processing. Try again shortly.',
+      });
     }
 
-    // Calculate subscription period
-    const durationDays = subscriptionType === 'annual' ? 365 : 30;
-    const validUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const isActive =
+      sub.subscriptionStatus === 'active' &&
+      new Date(sub.currentPeriodEnd) > now;
 
-    // Create dealer record
+    if (!isActive) {
+      return res.status(403).json({ error: 'active_subscription_required' });
+    }
+
+    // Enforce one billing email = one dealership listing
+    const existingDealer = await Dealer.findOne({ contactEmail: normalizedEmail });
+    if (existingDealer) {
+      return res.status(400).json({
+        error: 'duplicate_listing',
+        message: 'A dealership listing already exists for this subscription.',
+      });
+    }
+
     const dealer = new Dealer({
+      userId: req.user.id,
       dealershipName,
       address,
       zipCode,
       contactEmail: normalizedEmail,
-      subscriptionType,
-      subscriptionValidUntil: validUntil,
-      images,
+      images: images || [],
+      subscriptionValidUntil: sub.currentPeriodEnd,
+      subscriptionStatus: sub.subscriptionStatus,
+      acceptingApplications: true,
     });
 
     await dealer.save();
@@ -90,55 +125,47 @@ router.post('/create', async (req, res) => {
     // Optional welcome email
     try {
       await sendDealerWelcomeEmail(dealer);
-    } catch (emailErr) {
-      console.warn('Welcome email failed:', emailErr.message);
+    } catch (e) {
+      console.warn('⚠️ Welcome email failed:', e.message);
     }
 
-    res.status(201).json({ message: 'Dealer profile created', dealer });
+    return res.status(201).json({ message: 'Dealer profile created', dealer });
   } catch (err) {
     console.error('❌ Error creating dealer:', err);
     res.status(500).json({ error: 'Failed to create dealer' });
   }
 });
 
-/**
- * ✅ Fetch all dealerships OR a single dealer by email
- */
-router.get('/', async (req, res) => {
+/* ---------------------------------------------------------
+ * GET MY DEALERSHIP (user has at most 1)
+ * --------------------------------------------------------- */
+router.get('/mine', authMiddleware, async (req, res) => {
   try {
-    const { email } = req.query;
-
-    if (email) {
-      const normalizedEmail = email.toLowerCase().trim();
-      const dealer = await Dealer.findOne({ contactEmail: normalizedEmail });
-
-      if (!dealer) {
-        return res.status(404).json({ error: 'Dealer not found' });
-      }
-
-      return res.json(dealer);
-    }
-
-    // Default: don’t return all unless explicitly searched
-    return res.json({ count: 0, dealers: [] });
+    const dealers = await Dealer.find({ userId: req.user.id }).sort({
+      createdAt: -1,
+    });
+    res.json(dealers);
   } catch (err) {
-    console.error('❌ Error fetching dealers:', err);
-    res.status(500).json({ error: 'Failed to fetch dealerships' });
+    console.error('❌ Error fetching user dealers:', err);
+    res.status(500).json({ error: 'Failed to fetch user dealerships' });
   }
 });
 
-/**
- * ✅ Update dealer info (images, address, etc.)
- */
-router.put('/:id/update', async (req, res) => {
+/* ---------------------------------------------------------
+ * UPDATE DEALER
+ * --------------------------------------------------------- */
+router.put('/:id/update', authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
-
     if (req.body.contactEmail) {
-      req.body.contactEmail = req.body.contactEmail.toLowerCase().trim();
+      req.body.contactEmail = normalize(req.body.contactEmail);
     }
 
-    const dealer = await Dealer.findByIdAndUpdate(id, req.body, { new: true });
+    const dealer = await Dealer.findOneAndUpdate(
+      { _id: req.params.id, userId: req.user.id },
+      req.body,
+      { new: true }
+    );
+
     if (!dealer) return res.status(404).json({ error: 'Dealer not found' });
 
     res.json(dealer);
@@ -148,12 +175,51 @@ router.put('/:id/update', async (req, res) => {
   }
 });
 
-/**
- * ✅ Delete dealer (admin use)
- */
-router.delete('/:id', async (req, res) => {
+/* ---------------------------------------------------------
+ * OWNER TOGGLES acceptingApplications
+ * --------------------------------------------------------- */
+router.patch('/:id/accepting', authMiddleware, async (req, res) => {
   try {
-    const deleted = await Dealer.findByIdAndDelete(req.params.id);
+    const dealer = await Dealer.findOne({
+      _id: req.params.id,
+      userId: req.user.id,
+    });
+
+    if (!dealer) return res.status(404).json({ error: 'Dealer not found' });
+
+    const now = new Date();
+    const subscriptionActive =
+      dealer.subscriptionStatus === 'active' &&
+      dealer.subscriptionValidUntil &&
+      dealer.subscriptionValidUntil > now;
+
+    // Cannot enable if subscription expired
+    if (!subscriptionActive && req.body.accepting) {
+      return res.status(403).json({
+        error: 'Subscription inactive — cannot accept applications.',
+      });
+    }
+
+    dealer.acceptingApplications = !!req.body.accepting;
+    await dealer.save();
+
+    res.json(dealer);
+  } catch (err) {
+    console.error('❌ Error updating acceptingApplications:', err);
+    res.status(500).json({ error: 'Failed to update accepting applications' });
+  }
+});
+
+/* ---------------------------------------------------------
+ * DELETE DEALER
+ * --------------------------------------------------------- */
+router.delete('/:id', authMiddleware, async (req, res) => {
+  try {
+    const deleted = await Dealer.findOneAndDelete({
+      _id: req.params.id,
+      userId: req.user.id,
+    });
+
     if (!deleted) return res.status(404).json({ error: 'Dealer not found' });
 
     res.json({ message: 'Dealer deleted successfully' });

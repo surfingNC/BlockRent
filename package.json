@@ -50,8 +50,9 @@
     "predeploy": "npm run build",
     "deploy": "gh-pages -d build",
     "start": "react-scripts start",
-    "dev": "concurrently \"npm run start-server\" \"npm start\"",
+    "dev": "concurrently \"npm run start-server\" \"npm start\" \"npm run stripe-listen-test\"",
     "start-server": "node backend/server.js",
+    "stripe-listen-test": "stripe listen --forward-to localhost:5000/api/stripe/webhook --events checkout.session.completed,invoice.paid,customer.subscription.updated",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"

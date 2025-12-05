@@ -9,52 +9,69 @@ function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState(null);
   const [justActivated, setJustActivated] = useState(false);
+  const [dealerStatus, setDealerStatus] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
-    const email = (localStorage.getItem('email') || '').trim().toLowerCase();
+    let email = '';
 
-    if (!token) {
-      console.warn('⛔ No token found in localStorage');
-      setLoading(false);
-      return;
-    }
+    // Extract email from JWT
+    if (token) {
+      try {
+        const decoded = jwtDecode(token);
+        const now = Math.floor(Date.now() / 1000);
 
-    try {
-      const decoded = jwtDecode(token);
-      const now = Math.floor(Date.now() / 1000);
-      if (!decoded.exp || decoded.exp < now) {
-        console.warn('🔒 Token expired:', decoded);
+        if (!decoded.exp || decoded.exp < now) {
+          console.warn('🔒 Token expired:', decoded);
+          localStorage.clear();
+          setLoading(false);
+          return;
+        }
+
+        email = decoded.email?.toLowerCase() || '';
+      } catch (err) {
+        console.error('❌ Failed to decode token:', err);
         localStorage.clear();
         setLoading(false);
         return;
       }
-    } catch (err) {
-      console.error('❌ Failed to decode token:', err);
-      localStorage.clear();
+    } else {
       setLoading(false);
       return;
     }
 
+    // Activation banner
     if (localStorage.getItem('subscriptionJustActivated') === '1') {
       setJustActivated(true);
       localStorage.removeItem('subscriptionJustActivated');
       setTimeout(() => setJustActivated(false), 6000);
     }
 
-    if (email) {
-      fetch(`/api/stripe/status?email=${encodeURIComponent(email)}`)
-        .then((res) => res.json())
-        .then((data) => {
-          console.log('📦 Stripe subscription status:', data);
-          setSubscription(data);
-        })
-        .catch((err) => console.error('⚠️ Subscription fetch failed:', err))
-        .finally(() => setLoading(false));
-    } else {
+    if (!email) {
       setLoading(false);
+      return;
     }
+
+    // 🔹 1. Fetch Real Estate subscription status
+    fetch(`/api/stripe/status?email=${encodeURIComponent(email)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        console.log('📦 Stripe subscription status:', data);
+        setSubscription(data);
+      })
+      .catch((err) => console.error('⚠️ Subscription fetch failed:', err));
+
+    // 🔹 2. Fetch Dealership subscription status
+    fetch(`/api/stripe/dealer-status?email=${encodeURIComponent(email)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        console.log('🚗 Dealer subscription status:', data);
+        setDealerStatus(data);
+      })
+      .catch((err) => console.error('⚠️ Dealer subscription fetch failed:', err))
+      .finally(() => setLoading(false));
   }, []);
+
 
   const handleLogout = () => {
     localStorage.clear();
@@ -85,121 +102,168 @@ function Dashboard() {
     );
   };
 
-  return (
+  const renderDealerBadge = () => {
+    if (!dealerStatus) {
+      return (
+        <div style={pill({ bg: '#fee2e2', color: '#991b1b' })}>
+          ❌ No dealership data
+        </div>
+      );
+    }
+
+    const status = (dealerStatus.subscriptionStatus || 'inactive').toLowerCase();
+    const active = status === 'active' || status === 'trialing';
+
+    if (!active) {
+      return (
+        <div style={pill({ bg: '#fee2e2', color: '#991b1b' })}>
+          ❌ Dealership plan inactive ({status})
+        </div>
+      );
+    }
+
+    const end = dealerStatus.currentPeriodEnd
+      ? new Date(dealerStatus.currentPeriodEnd).toLocaleString()
+      : null;
+
+    return (
+      <div style={pill({ bg: '#dcfce7', color: '#166534' })}>
+        ✅ DEALERSHIP PLAN — {end ? `renews on ${end}` : 'active'}
+      </div>
+    );
+  };
+
+return (
+  <div
+    style={{
+      backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      backgroundAttachment: 'fixed',
+      minHeight: '100vh',
+      width: '100%',
+    }}
+  >
+    <DashboardHeader username={localStorage.getItem('username') || ''} />
+
     <div
       style={{
-        backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed',
-        minHeight: '100vh',
-        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        padding: '2rem',
       }}
     >
-      <DashboardHeader username={localStorage.getItem('username') || ''} />
+      {justActivated && (
+        <div
+          style={{
+            marginTop: '1rem',
+            marginBottom: '1rem',
+            padding: '10px 16px',
+            background: '#eef6ff',
+            color: '#1e3a8a',
+            borderRadius: 12,
+            fontWeight: 600,
+          }}
+        >
+          🎉 Subscription activated! Welcome back.
+        </div>
+      )}
+
+      {/* REAL ESTATE SECTION */}
+      <h2 style={{ marginTop: '2rem', color: '#1e293b' }}>🏠 Real Estate Listings</h2>
 
       <div
         style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '2rem',
+          backgroundColor: '#ffffffee',
+          padding: '30px',
+          borderRadius: '16px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+          width: '100%',
+          maxWidth: '420px',
+          textAlign: 'center',
+          marginTop: '1.5rem',
         }}
       >
-        {justActivated && (
-          <div
-            style={{
-              marginTop: '1rem',
-              marginBottom: '1rem',
-              padding: '10px 16px',
-              background: '#eef6ff',
-              color: '#1e3a8a',
-              borderRadius: 12,
-              fontWeight: 600,
-            }}
-          >
-            🎉 Subscription activated! Welcome back.
+        {renderSubBadge()}
+
+        {subscription?.status === 'active' && (
+          <div style={{ marginBottom: 12, color: '#334155' }}>
+            {subscription.listingCount == null
+              ? 'Listings: Unlimited'
+              : `Listings remaining: ${subscription.listingCount}`}
           </div>
         )}
 
-        {/* ----------- REAL ESTATE SECTION ----------- */}
-        <h2 style={{ marginTop: '2rem', color: '#1e293b' }}>🏠 Real Estate Listings</h2>
+        <button onClick={() => navigate('/listings')} style={btnStyle}>
+          🔍 Browse Listings
+        </button>
 
-        <div
-                style={{
-                        backgroundColor: '#ffffffee',
-                        padding: '30px',
-                        borderRadius: '16px',
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-                        width: '100%',
-                        maxWidth: '420px',
-                        textAlign: 'center',
-                        marginTop: '1.5rem',
-                }}
-        >
-                {renderSubBadge()}
+        <button onClick={() => navigate('/subscribe')} style={btnStyle}>
+          📬 {subscription?.status === 'active' ? 'Renew Subscription' : 'Subscribe'}
+        </button>
 
-                {subscription?.status === 'active' && (
-                        <div style={{ marginBottom: 12, color: '#334155' }}>
-                                {subscription.listingCount == null
-                                        ? 'Listings: Unlimited'
-                                        : `Listings remaining: ${subscription.listingCount}`}
-                        </div>
-                )}
+        <button onClick={() => navigate('/list-your-home')} style={btnStyle}>
+          🏡 List Your Home
+        </button>
 
-                {/* ✅ Moved inside this card */}
-                <button onClick={() => navigate('/listings')} style={btnStyle}>
-                        🔍 Browse Listings
-                </button>
-
-                <button onClick={() => navigate('/subscribe')} style={btnStyle}>
-                        📬 {subscription?.status === 'active' ? 'Renew Subscription' : 'Subscribe'}
-                </button>
-
-                <button onClick={() => navigate('/list-your-home')} style={btnStyle}>
-                        🏡 List Your Home
-                </button>
-
-                <button onClick={() => navigate('/manage-listings')} style={btnStyle}>
-                        🧾 Manage My Listings
-                </button>
-        </div>
-        {/* ----------- AUTOMOTIVE SECTION ----------- */}
-        <h2 style={{ marginTop: '3rem', color: '#1e293b' }}>🚗 Automotive Leasing</h2>
-
-        <div
-          style={{
-            backgroundColor: '#ffffffee',
-            padding: '30px',
-            borderRadius: '16px',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
-            width: '100%',
-            maxWidth: '420px',
-            textAlign: 'center',
-            marginTop: '1.5rem',
-          }}
-        >
-          <button onClick={() => navigate('/car-listings')} style={btnStyle}>
-            🚘 Browse Dealerships
-          </button>
-
-          <button onClick={() => navigate('/list-your-dealership')} style={btnStyle}>
-            🏢 List Your Dealership
-          </button>
-
-          <button onClick={() => navigate('/dealer-dashboard')} style={btnStyle}>
-            🧰 Dealer Dashboard
-          </button>
-        </div>
-
-        {/* ----------- ACCOUNT SECTION ----------- */}
-        <button onClick={handleLogout} style={{ ...btnStyle, marginTop: '2.5rem' }}>
-          🔓 Logout
+        <button onClick={() => navigate('/manage-listings')} style={btnStyle}>
+          🧾 Manage My Listings
         </button>
       </div>
+
+      {/* AUTOMOTIVE SECTION */}
+      <h2 style={{ marginTop: '3rem', color: '#1e293b' }}>🚗 Automotive Leasing</h2>
+
+      <div style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
+        {renderDealerBadge()}
+      </div>
+
+      <div
+        style={{
+          backgroundColor: '#ffffffee',
+          padding: '30px',
+          borderRadius: '16px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
+          width: '100%',
+          maxWidth: '420px',
+          textAlign: 'center',
+        }}
+      >
+        <button onClick={() => navigate('/car-listings')} style={btnStyle}>
+          🚘 Browse Dealerships
+        </button>
+
+        <button
+          onClick={() => navigate('/list-your-dealership')}
+          style={{
+            ...btnStyle,
+            opacity: dealerStatus?.status === 'active' ? 1.0 : 0.5,
+            pointerEvents: dealerStatus?.status === 'active' ? 'auto' : 'none',
+          }}
+        >
+          🏢 List Your Dealership
+        </button>
+
+        <button
+          onClick={() => navigate('/dealer-dashboard')}
+          style={{
+            ...btnStyle,
+            opacity: dealerStatus?.status === 'active' ? 1.0 : 0.5,
+            pointerEvents: dealerStatus?.status === 'active' ? 'auto' : 'none',
+          }}
+        >
+          🧰 Dealer Dashboard
+        </button>
+      </div>
+
+      <button onClick={handleLogout} style={{ ...btnStyle, marginTop: '2.5rem' }}>
+        🔓 Logout
+      </button>
     </div>
-  );
+  </div>
+);
 }
 
 const pill = ({ bg, color }) => ({

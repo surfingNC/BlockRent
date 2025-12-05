@@ -1,59 +1,66 @@
+// src/components/DealerCard.jsx
 import React from 'react';
 
 function DealerCard({ dealer, onApply }) {
-  const {
-    dealershipName,
-    address,
-    zipCode,
-    contactEmail,
-    images = [],
-    subscriptionType,
-    acceptingApplications,
-  } = dealer;
-
-  const firstImage =
-    images && images.length > 0
-      ? images[0]
-      : 'https://via.placeholder.com/400x250?text=No+Image';
+  const inactive = dealer.acceptingApplications === false;
 
   return (
-    <div className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300">
-      {/* 🖼️ Dealer Image */}
-      <img
-        src={firstImage}
-        alt={dealershipName}
-        className="w-full h-48 object-cover"
-      />
+    <div
+      className="rounded-lg shadow-md overflow-hidden border transition-all"
+      style={{
+        opacity: inactive ? 0.6 : 1,
+        pointerEvents: inactive ? 'none' : 'auto',
+        position: 'relative',
+      }}
+    >
+      {/* Inactive ribbon */}
+      {inactive && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            left: -30,
+            backgroundColor: '#dc2626',
+            color: 'white',
+            padding: '4px 40px',
+            transform: 'rotate(-45deg)',
+            fontSize: '0.75rem',
+            fontWeight: '600',
+          }}
+        >
+          Not Accepting
+        </div>
+      )}
 
-      {/* 🏢 Dealer Info */}
+      {/* Dealer Image */}
+      {dealer.images?.length > 0 ? (
+        <img
+          src={dealer.images[0]}
+          alt={dealer.dealershipName}
+          className="w-full h-40 object-cover"
+        />
+      ) : (
+        <div className="w-full h-40 bg-gray-200 flex items-center justify-center text-gray-500">
+          No Image
+        </div>
+      )}
+
       <div className="p-4">
-        <h2 className="text-lg font-semibold mb-1">{dealershipName}</h2>
-
-        <p className="text-gray-600 text-sm">{address}</p>
-        {zipCode && <p className="text-gray-600 text-sm">ZIP: {zipCode}</p>}
-
-        <p className="text-gray-500 text-xs mt-2">
-          Subscription: {subscriptionType?.toUpperCase() || 'N/A'}
+        <h3 className="text-lg font-bold">{dealer.dealershipName}</h3>
+        <p className="text-sm text-gray-600">{dealer.address}</p>
+        <p className="text-sm text-gray-500">
+          ZIP: {dealer.zipCode}
         </p>
 
-        {/* 📨 Contact Email */}
-        <p className="text-gray-600 text-xs mt-1 truncate">
-          <span className="font-medium">Email:</span> {contactEmail}
-        </p>
-
-        {/* 🟢 Apply Button */}
-        {acceptingApplications ? (
-          <button
-            onClick={() => onApply(dealer)}
-            className="mt-3 w-full bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600"
-          >
-            Apply for Rent
-          </button>
-        ) : (
-          <p className="mt-3 text-red-500 text-sm text-center">
-            Not accepting applications
-          </p>
-        )}
+        <button
+          className={`mt-3 w-full py-2 rounded text-white ${
+            inactive ? 'bg-gray-400 cursor-not-allowed' : 'bg-yellow-500 hover:bg-yellow-600'
+          }`}
+          disabled={inactive}
+          onClick={() => !inactive && onApply(dealer)}
+        >
+          {inactive ? 'Applications Closed' : 'Apply'}
+        </button>
       </div>
     </div>
   );

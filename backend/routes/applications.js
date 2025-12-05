@@ -5,22 +5,57 @@ import { sendDealerApplicationEmail } from '../utils/sendDealerApplicationEmail.
 
 const router = express.Router();
 
-// Dealership application
-// ✅ Submit Bitcoin-based lease application
+/**
+ * 🚗 Submit dealership lease application
+ */
 router.post('/submit', async (req, res) => {
   try {
-    const { dealershipId, applicantEmail, btcAddress, btcHoldings, message } = req.body;
+    const {
+      dealershipId,
+      applicantEmail,
+      btcAddress,
+      btcHoldings,
+      message
+    } = req.body;
 
     if (!dealershipId || !applicantEmail) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // Fetch dealer
     const dealer = await Dealer.findById(dealershipId);
-    if (!dealer || !dealer.acceptingApplications) {
-      return res.status(400).json({ error: 'Dealer not accepting applications' });
+    if (!dealer) {
+      return res.status(404).json({ error: 'Dealer not found' });
     }
 
-    // Create a new car application record
+    /* ----------------------------------------------------
+     * ❌ HARD BLOCK 1 — Stripe subscription inactive/expired
+     * ---------------------------------------------------- */
+    const now = new Date();
+
+    const subscriptionExpired =
+      !dealer.subscriptionValidUntil ||
+      now > dealer.subscriptionValidUntil ||
+      dealer.subscriptionStatus !== 'active';
+
+    if (subscriptionExpired) {
+      return res.status(403).json({
+        error: 'This dealership subscription is inactive or expired. Applications are temporarily disabled.',
+      });
+    }
+
+    /* ----------------------------------------------------
+     * ❌ HARD BLOCK 2 — dealer turned off applications
+     * ---------------------------------------------------- */
+    if (!dealer.acceptingApplications) {
+      return res.status(403).json({
+        error: 'This dealership is not currently accepting applications.',
+      });
+    }
+
+    /* ----------------------------------------------------
+     * Application is allowed → save + notify dealer
+     * ---------------------------------------------------- */
     const app = new CarApplication({
       dealershipId,
       applicantEmail,
@@ -31,7 +66,7 @@ router.post('/submit', async (req, res) => {
 
     await app.save();
 
-    // Send email notification to the dealership
+    // Email dealer owner
     await sendDealerApplicationEmail({
       to: dealer.contactEmail,
       applicantEmail,
@@ -41,10 +76,13 @@ router.post('/submit', async (req, res) => {
       dealershipName: dealer.dealershipName,
     });
 
-    res.status(201).json({ message: 'Application submitted successfully' });
+    return res
+      .status(201)
+      .json({ message: 'Application submitted successfully' });
+
   } catch (err) {
     console.error('❌ Error submitting car application:', err);
-    res.status(500).json({ error: 'Failed to submit application' });
+    return res.status(500).json({ error: 'Failed to submit application' });
   }
 });
 

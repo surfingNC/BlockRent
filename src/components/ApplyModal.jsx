@@ -8,7 +8,14 @@ function ApplyModal({ dealer, onClose }) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null);
 
+  if (!dealer) return null;
+
+  // ❌ Dealer cannot accept applications
+  const isBlocked = dealer.acceptingApplications === false;
+
   const handleUniSatConnect = async () => {
+    if (isBlocked) return;
+
     if (!window.unisat) return alert('UniSat wallet not found');
     try {
       const accounts = await window.unisat.requestAccounts();
@@ -26,6 +33,8 @@ function ApplyModal({ dealer, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isBlocked) return;
+
     if (!email || !btcHoldings) {
       return alert('Please connect wallet and enter your email.');
     }
@@ -113,17 +122,44 @@ function ApplyModal({ dealer, onClose }) {
           Apply to {dealer.dealershipName}
         </h2>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        {/* ❌ Dealer not accepting applications */}
+        {isBlocked && (
+          <div
+            style={{
+              backgroundColor: '#fee2e2',
+              border: '1px solid #fca5a5',
+              color: '#b91c1c',
+              padding: '0.75rem',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+              textAlign: 'center',
+              fontWeight: '500',
+            }}
+          >
+            🚫 This dealership is not accepting applications right now.
+            <br />
+            <span style={{ fontSize: '0.9rem' }}>
+              Their subscription is inactive or expired.
+            </span>
+          </div>
+        )}
+
+        <form
+          onSubmit={handleSubmit}
+          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+        >
           <label>Email:</label>
           <input
             type="email"
             value={email}
+            disabled={isBlocked}
             onChange={(e) => setEmail(e.target.value)}
             required
             style={{
               border: '1px solid #ccc',
               borderRadius: '6px',
               padding: '0.4rem',
+              backgroundColor: isBlocked ? '#f5f5f5' : 'white',
             }}
           />
 
@@ -132,21 +168,24 @@ function ApplyModal({ dealer, onClose }) {
             type="text"
             value={btcAddress}
             readOnly
+            disabled={isBlocked}
             style={{
               border: '1px solid #ccc',
               borderRadius: '6px',
               padding: '0.4rem',
+              backgroundColor: isBlocked ? '#f5f5f5' : 'white',
             }}
           />
           <button
             type="button"
+            disabled={isBlocked}
             onClick={handleUniSatConnect}
             style={{
-              backgroundColor: '#374151',
+              backgroundColor: isBlocked ? '#9ca3af' : '#374151',
               color: 'white',
               padding: '0.4rem',
               borderRadius: '6px',
-              cursor: 'pointer',
+              cursor: isBlocked ? 'not-allowed' : 'pointer',
               border: 'none',
             }}
           >
@@ -158,10 +197,12 @@ function ApplyModal({ dealer, onClose }) {
             type="text"
             value={btcHoldings}
             readOnly
+            disabled={isBlocked}
             style={{
               border: '1px solid #ccc',
               borderRadius: '6px',
               padding: '0.4rem',
+              backgroundColor: isBlocked ? '#f5f5f5' : 'white',
             }}
           />
 
@@ -169,26 +210,28 @@ function ApplyModal({ dealer, onClose }) {
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            disabled={isBlocked}
             rows="3"
             style={{
               border: '1px solid #ccc',
               borderRadius: '6px',
               padding: '0.4rem',
               resize: 'none',
+              backgroundColor: isBlocked ? '#f5f5f5' : 'white',
             }}
           />
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || isBlocked}
             style={{
-              backgroundColor: '#f59e0b',
+              backgroundColor: isBlocked ? '#9ca3af' : '#f59e0b',
               color: 'white',
               border: 'none',
               borderRadius: '6px',
               padding: '0.6rem',
               fontWeight: '500',
-              cursor: 'pointer',
+              cursor: isBlocked ? 'not-allowed' : 'pointer',
               marginTop: '0.5rem',
             }}
           >
