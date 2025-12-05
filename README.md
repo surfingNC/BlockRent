@@ -61,3 +61,5 @@
 ## 🌱 Vision
 
 BlockRent empowers Bitcoin-savvy landlords and tenants to engage in BTC-backed rentals — without middlemen, without escrow, and with transparent application proof. In parallel, the **BlockLease** vertical brings the same decentralized leasing framework to independent car dealerships, where buyers prove BTC savings instead of relying solely on conventional credit systems. Together, BlockRent and BlockLease aim to become the Bitcoin-native underwriting layer for both **housing** and **vehicle** access.
+
+Long-term goal: Secure seed funding, obtain an MSB license and escrow insurance, and build a fully automated Bitcoin escrow liquidation engine.
