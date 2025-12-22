@@ -8,6 +8,7 @@ import { computeAccessFromPlan } from './stripe.js';
 
 const router = express.Router();
 
+
 /* --------------------------------------------------------
  * STRIPE CONFIG
  * -------------------------------------------------------- */
@@ -38,6 +39,15 @@ const DEALER_PRICES = {
       ? process.env.STRIPE_DEALER_ANNUAL_TEST
       : process.env.STRIPE_DEALER_ANNUAL_LIVE,
 };
+
+function planTypeFromPriceId(priceId) {
+  if (!priceId) return null;
+
+  if (priceId === DEALER_PRICES.dealership_monthly) return 'dealership_monthly';
+  if (priceId === DEALER_PRICES.dealership_annual) return 'dealership_annual';
+
+  return null;
+}
 
 /* --------------------------------------------------------
  * REAL-ESTATE EMAIL SENDER
@@ -117,85 +127,101 @@ async function sendConfirmationEmail(doc) {
  * -------------------------------------------------------- */
 async function saveDealerSubscription(subscription, email, planType) {
   if (!subscription) return;
-
   if (!isDealershipSubscription(subscription)) return;
+
+  // If period fields are missing, re-fetch a full subscription object from Stripe
+  let sub = subscription;
+  if (!sub.current_period_start || !sub.current_period_end) {
+    try {
+      sub = await stripe.subscriptions.retrieve(subscription.id);
+    } catch (err) {
+      console.error('❌ stripe.subscriptions.retrieve failed:', err?.message || err);
+      // proceed with what we have
+    }
+  }
+  console.log('SUB PERIODS', sub.id, sub.current_period_start, sub.current_period_end);
 
   const normalizedEmail = normalizeEmail(
     email ||
-    subscription.metadata?.email ||
-    subscription.items?.data?.[0]?.price?.metadata?.email
+      sub.metadata?.email ||
+      sub.items?.data?.[0]?.price?.metadata?.email ||
+      ''
   );
 
-  const normalizedPlanType = String(
-    planType ||
-      subscription.metadata?.planType ||
-      subscription.items?.data?.[0]?.price?.nickname ||
-      ''
-  )
-    .toLowerCase()
-    .trim();
+  const price = sub.items?.data?.[0]?.price || null;
+  const priceId = price?.id || null;
 
-  const price = subscription.items?.data?.[0]?.price || null;
+  let normalizedPlanType =
+    planTypeFromPriceId(priceId) ||
+    String(planType || sub.metadata?.planType || '').toLowerCase().trim();
+
+  if (!['dealership_monthly', 'dealership_annual'].includes(normalizedPlanType)) {
+    normalizedPlanType = planTypeFromPriceId(priceId) || 'dealership_monthly';
+  }
 
   const start =
-    subscription.current_period_start &&
-    new Date(subscription.current_period_start * 1000);
+    sub.current_period_start ? new Date(sub.current_period_start * 1000) : null;
 
   const end =
-    subscription.current_period_end &&
-    new Date(subscription.current_period_end * 1000);
+    sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
 
-  const interval =
-    subscription.items?.data?.[0]?.price?.recurring?.interval || null;
-
-  // Compute dealer metadata once
+  const interval = price?.recurring?.interval || null;
   const access = computeAccessFromPlan(normalizedPlanType);
 
-  // Save AgentPayment entry
+  // Build update so we never stomp good values with null
+  const update = {
+    email: normalizedEmail,
+    type: normalizedPlanType,
+    category: 'dealership',
+    provider: 'stripe',
+    mode: 'subscription',
+    subscriptionId: sub.id,
+
+    customerId: sub.customer || null,
+    confirmed: ['active', 'trialing'].includes(sub.status),
+
+    subscriptionStatus: sub.status,
+    cancelAtPeriodEnd: sub.cancel_at_period_end ?? null,
+    priceId: priceId || null,
+    productId: price?.product || null,
+    subscriptionInterval: interval,
+    latestEventAt: new Date(),
+    ...(access || {}),
+  };
+
+  if (start) update.currentPeriodStart = start;
+  if (end) {
+    update.currentPeriodEnd = end;
+    update.validUntil = end;
+  }
+
   const doc = await AgentPayment.findOneAndUpdate(
-    { subscriptionId: subscription.id },
-    {
-      email: normalizedEmail,
-      type: normalizedPlanType,
-      category: 'dealership',
-      provider: 'stripe',
-      mode: 'subscription',
-      subscriptionId: subscription.id,
-      subscriptionStatus: subscription.status,
-      currentPeriodStart: start,
-      currentPeriodEnd: end,
-      cancelAtPeriodEnd: subscription.cancel_at_period_end ?? null,
-      priceId: price?.id || null,
-      productId: price?.product || null,
-      subscriptionInterval: interval,
-      latestEventAt: new Date(),
-      ...(access || {}),
-    },
+    { subscriptionId: sub.id },
+    { $set: update },
     { upsert: true, new: true }
   );
 
-  // Sync Dealer model
+  // Sync Dealer model (only write validUntil if we have it)
   try {
     const now = new Date();
-    const isActive =
-      subscription.status === 'active' &&
-      end &&
-      end.getTime() > now.getTime();
+    const isGoodStatus = ['active', 'trialing'].includes(sub.status);
+    const isActive = Boolean(isGoodStatus && end && end.getTime() > now.getTime());
 
-    await Dealer.updateMany(
-      { contactEmail: normalizedEmail },
-      {
-        subscriptionStatus: subscription.status,
-        subscriptionValidUntil: end || null,
-        acceptingApplications: isActive,
-      }
-    );
+    const dealerUpdate = {
+      subscriptionStatus: sub.status,
+      acceptingApplications: isActive,
+    };
+    if (end) dealerUpdate.subscriptionValidUntil = end;
+
+    await Dealer.updateMany({ contactEmail: normalizedEmail }, dealerUpdate);
   } catch (err) {
     console.error('❌ Failed to sync Dealer subscription:', err);
   }
 
   return doc;
 }
+
+
 
 /* --------------------------------------------------------
  * MAIN WEBHOOK ENDPOINT
@@ -356,12 +382,18 @@ router.post(
         return res.json({ received: true });
       }
 
-      const email = normalizeEmail(subscription.metadata?.email);
+      const email = normalizeEmail(
+        subscription.metadata?.email ||
+        subscription.items?.data?.[0]?.price?.metadata?.email ||
+        ''
+      );
+
 
       await AgentPayment.findOneAndUpdate(
         { subscriptionId: subscription.id },
         {
           subscriptionStatus: 'past_due',
+          confirmed: false,
           latestEventAt: new Date(),
         }
       );
@@ -387,12 +419,29 @@ router.post(
         return res.json({ received: true });
       }
 
-      const email = normalizeEmail(subscription.metadata?.email);
+      const email = normalizeEmail(
+        subscription.metadata?.email ||
+          subscription.items?.data?.[0]?.price?.metadata?.email ||
+          ''
+      );
+
+      const start =
+        subscription.current_period_start &&
+        new Date(subscription.current_period_start * 1000);
+
+      const end =
+        subscription.current_period_end &&
+        new Date(subscription.current_period_end * 1000);
 
       await AgentPayment.findOneAndUpdate(
         { subscriptionId: subscription.id },
         {
           subscriptionStatus: 'canceled',
+          confirmed: false,
+          currentPeriodStart: start || null,
+          currentPeriodEnd: end || null,
+          validUntil: end || null, // keep last paid-through date
+          cancelAtPeriodEnd: subscription.cancel_at_period_end ?? null,
           latestEventAt: new Date(),
         }
       );
@@ -401,12 +450,15 @@ router.post(
         { contactEmail: email },
         {
           subscriptionStatus: 'canceled',
+          subscriptionValidUntil: end || null,
           acceptingApplications: false,
         }
       );
 
       return res.json({ received: true });
     }
+
+
 
     return res.json({ received: true });
   }

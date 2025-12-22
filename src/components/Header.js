@@ -53,7 +53,7 @@ function Header() {
           pointerEvents: 'none', // doesn’t block logo click
         }}
       >
-        The universal BTC-collateralized leasing platform
+        Replace Abritrary Credit Scores With Bitcoin Savings
       </div>
     </header>
   );
