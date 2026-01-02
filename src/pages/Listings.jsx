@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
 
 function Listings() {
@@ -8,6 +8,9 @@ function Listings() {
   const [radius, setRadius] = useState('25');
   const [lightbox, setLightbox] = useState({ open: false, images: [], index: 0 });
   const [applyModal, setApplyModal] = useState({ open: false, listing: null });
+
+  // NEW: sort option
+  const [priceSort, setPriceSort] = useState('none'); // 'none' | 'low' | 'high'
 
   const API_URL = 'http://localhost:5000';
 
@@ -89,6 +92,39 @@ function Listings() {
     }
   };
 
+  // NEW: sorted view of filtered results (does NOT mutate state)
+  const visibleListings = useMemo(() => {
+    const arr = [...filtered];
+
+    const toNumber = (v) => {
+      // supports numbers and numeric strings; strips $ and commas if they sneak in
+      const n = Number(String(v ?? '').replace(/[$,]/g, ''));
+      return Number.isFinite(n) ? n : null;
+    };
+
+    if (priceSort === 'low') {
+      arr.sort((a, b) => {
+        const pa = toNumber(a.price);
+        const pb = toNumber(b.price);
+        if (pa === null && pb === null) return 0;
+        if (pa === null) return 1; // push unknown prices to bottom
+        if (pb === null) return -1;
+        return pa - pb;
+      });
+    } else if (priceSort === 'high') {
+      arr.sort((a, b) => {
+        const pa = toNumber(a.price);
+        const pb = toNumber(b.price);
+        if (pa === null && pb === null) return 0;
+        if (pa === null) return 1;
+        if (pb === null) return -1;
+        return pb - pa;
+      });
+    }
+
+    return arr;
+  }, [filtered, priceSort]);
+
   return (
     <div>
       <DashboardHeader username={localStorage.getItem('username') || ''} />
@@ -96,14 +132,15 @@ function Listings() {
         <h2>Available Listings</h2>
 
         {/* Filter UI */}
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ marginBottom: '1rem' }}>
           <select
             value={selectedState}
             onChange={handleFilterChange}
             style={{ padding: '0.5rem', fontSize: '1rem', marginRight: '1rem' }}
           >
             <option value="">All States</option>
-            {[ 'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+            {[
+              'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
               'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
               'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
               'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
@@ -138,6 +175,21 @@ function Listings() {
           </button>
         </div>
 
+        {/* NEW: Sort row (beneath the search bar) */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <label style={{ marginRight: '0.5rem', color: '#333' }}>Sort by:</label>
+          <select
+            value={priceSort}
+            onChange={(e) => setPriceSort(e.target.value)}
+            style={{ padding: '0.5rem' }}
+            disabled={zipInput === ''} // optional: prevents sorting before search
+          >
+            <option value="none">Recommended (default)</option>
+            <option value="low">Price: Low to High</option>
+            <option value="high">Price: High to Low</option>
+          </select>
+        </div>
+
         {/* Listings */}
         {zipInput === '' ? (
           <p style={{ marginTop: '2rem', color: '#888' }}>
@@ -145,13 +197,13 @@ function Listings() {
           </p>
         ) : (
           <>
-            {filtered.length === 0 ? (
+            {visibleListings.length === 0 ? (
               <p style={{ marginTop: '2rem', color: '#888' }}>
                 No listings found within {radius} miles of ZIP {zipInput}
                 {selectedState && ` in ${selectedState}`}.
               </p>
             ) : (
-              filtered.map((listing, index) => (
+              visibleListings.map((listing, index) => (
                 <div key={listing._id}>
                   <ListingCard
                     listing={listing}
@@ -159,7 +211,7 @@ function Listings() {
                     setLightbox={setLightbox}
                     openApply={() => setApplyModal({ open: true, listing })}
                   />
-                  {index < filtered.length - 1 && <hr style={{ margin: '2rem 0' }} />}
+                  {index < visibleListings.length - 1 && <hr style={{ margin: '2rem 0' }} />}
                 </div>
               ))
             )}
@@ -188,8 +240,10 @@ function Listings() {
 function ListingCard({ listing, zipRef, setLightbox, openApply }) {
   const [currentImage, setCurrentImage] = useState(0);
 
-  const nextImage = () => setCurrentImage((prev) => (prev + 1) % listing.imageUrls.length);
-  const prevImage = () => setCurrentImage((prev) => (prev - 1 + listing.imageUrls.length) % listing.imageUrls.length);
+  const nextImage = () =>
+    setCurrentImage((prev) => (prev + 1) % listing.imageUrls.length);
+  const prevImage = () =>
+    setCurrentImage((prev) => (prev - 1 + listing.imageUrls.length) % listing.imageUrls.length);
 
   return (
     <div style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '1rem', backgroundColor: '#fff' }}>
@@ -239,12 +293,31 @@ function ApplyForm({ listing, onSubmit, onClose }) {
       backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex',
       justifyContent: 'center', alignItems: 'center', zIndex: 1000
     }}>
-      <form onSubmit={handleSubmit}
-        style={{ background: '#fff', padding: '2rem', borderRadius: '8px', maxWidth: '400px', width: '100%' }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{ background: '#fff', padding: '2rem', borderRadius: '8px', maxWidth: '400px', width: '100%' }}
+      >
         <h2>Apply for {listing.streetAddress}</h2>
-        <input type="text" placeholder="Your Name" value={applicantName} onChange={(e) => setApplicantName(e.target.value)} required />
-        <input type="email" placeholder="Your Email" value={applicantEmail} onChange={(e) => setApplicantEmail(e.target.value)} required />
-        <textarea placeholder="Message about yourself" value={messageText} onChange={(e) => setMessageText(e.target.value)} required></textarea>
+        <input
+          type="text"
+          placeholder="Your Name"
+          value={applicantName}
+          onChange={(e) => setApplicantName(e.target.value)}
+          required
+        />
+        <input
+          type="email"
+          placeholder="Your Email"
+          value={applicantEmail}
+          onChange={(e) => setApplicantEmail(e.target.value)}
+          required
+        />
+        <textarea
+          placeholder="Message about yourself"
+          value={messageText}
+          onChange={(e) => setMessageText(e.target.value)}
+          required
+        />
         <button type="submit">Submit Application</button>
         <button type="button" onClick={onClose} style={{ marginLeft: '10px' }}>Cancel</button>
       </form>
@@ -264,13 +337,25 @@ function Lightbox({ images, index, setLightbox }) {
       backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex',
       justifyContent: 'center', alignItems: 'center', zIndex: 1000
     }}>
-      <button onClick={() => setLightbox({ open: false, images: [], index: 0 })}
-        style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>×</button>
-      <button onClick={prev}
-        style={{ position: 'absolute', top: '50%', left: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>&lt;</button>
+      <button
+        onClick={() => setLightbox({ open: false, images: [], index: 0 })}
+        style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}
+      >
+        ×
+      </button>
+      <button
+        onClick={prev}
+        style={{ position: 'absolute', top: '50%', left: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}
+      >
+        &lt;
+      </button>
       <img src={images[current]} alt="Property" style={{ maxWidth: '90%', maxHeight: '90%' }} />
-      <button onClick={next}
-        style={{ position: 'absolute', top: '50%', right: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}>&gt;</button>
+      <button
+        onClick={next}
+        style={{ position: 'absolute', top: '50%', right: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}
+      >
+        &gt;
+      </button>
     </div>
   );
 }

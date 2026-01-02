@@ -28,6 +28,8 @@ const DealerSchema = new mongoose.Schema(
       trim: true,
     },
 
+    welcomeEmailSentAt: { type: Date, default: null },
+
     // 🖼 Photos stored
     images: { type: [String], default: [] },
 

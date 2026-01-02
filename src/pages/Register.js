@@ -10,11 +10,15 @@ function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordsMatch, setPasswordsMatch] = useState(true);
   const [passwordTooShort, setPasswordTooShort] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
   const navigate = useNavigate();
 
   const handleRegister = async (e) => {
     e.preventDefault();
+
     const trimmedUsername = username.trim();
+    const normalizedEmail = email.trim().toLowerCase();
 
     if (password.length < 8) {
       setPasswordTooShort(true);
@@ -27,28 +31,37 @@ function Register() {
     }
 
     try {
+      setSubmitting(true);
+
       const res = await fetch('http://localhost:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, username: trimmedUsername, password })
+        body: JSON.stringify({
+          email: normalizedEmail,
+          username: trimmedUsername,
+          password,
+        }),
       });
 
       const data = await res.json();
+
       if (res.ok) {
+        // Persist email so VerifyEmail survives refresh
+        localStorage.setItem('pendingVerifyEmail', normalizedEmail);
+
         alert('Verification code sent to your email.');
-        navigate('/verify-email', {
-          state: {
-            email,
-            username: trimmedUsername,
-            password
-          }
-        });
+        navigate('/verify-email', { state: { email: normalizedEmail } });
       } else {
+        // Don't keep stale pending email on failures
+        localStorage.removeItem('pendingVerifyEmail');
         alert(data.msg || 'Registration failed');
       }
     } catch (err) {
       console.error(err);
+      localStorage.removeItem('pendingVerifyEmail');
       alert('Error registering user');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -74,7 +87,7 @@ function Register() {
         backgroundRepeat: 'no-repeat',
         backgroundAttachment: 'fixed',
         minHeight: '100vh',
-        width: '100%'
+        width: '100%',
       }}
     >
       <Header />
@@ -83,12 +96,13 @@ function Register() {
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          minHeight: 'calc(100vh - 72px)'
+          minHeight: 'calc(100vh - 72px)',
         }}
       >
         <div className="app-container">
           <div className="login-box">
             <h2 style={{ textAlign: 'center' }}>Register</h2>
+
             <form onSubmit={handleRegister}>
               <div className="input-group">
                 <label htmlFor="email">Email</label>
@@ -98,6 +112,7 @@ function Register() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                 />
               </div>
 
@@ -109,6 +124,7 @@ function Register() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
+                  autoComplete="username"
                 />
               </div>
 
@@ -120,6 +136,7 @@ function Register() {
                   value={password}
                   onChange={handlePasswordChange}
                   required
+                  autoComplete="new-password"
                 />
                 {passwordTooShort && (
                   <p style={{ color: 'red', fontSize: '0.9em', marginTop: '5px' }}>
@@ -136,9 +153,10 @@ function Register() {
                   value={confirmPassword}
                   onChange={handleConfirmPasswordChange}
                   required
+                  autoComplete="new-password"
                   style={{
                     borderColor: !passwordsMatch ? 'red' : '',
-                    borderWidth: !passwordsMatch ? '2px' : ''
+                    borderWidth: !passwordsMatch ? '2px' : '',
                   }}
                 />
                 {!passwordsMatch && (
@@ -148,13 +166,11 @@ function Register() {
                 )}
               </div>
 
-              <button
-                type="submit"
-                disabled={!passwordsMatch || passwordTooShort}
-              >
-                Sign Up
+              <button type="submit" disabled={!passwordsMatch || passwordTooShort || submitting}>
+                {submitting ? 'Sending code...' : 'Sign Up'}
               </button>
             </form>
+
           </div>
         </div>
       </div>

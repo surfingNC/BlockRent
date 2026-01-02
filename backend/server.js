@@ -13,10 +13,10 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 
 // ---------- ROUTES ----------
+import User from './models/User.js';
+import Verification from './models/Verification.js';
 import authRoutes from './routes/auth.js';
 import protectedRoutes from './routes/protected.js';
-import verifyRoute from './routes/verify.js';
-import resetRoute from './routes/reset.js';
 import walletRoutes from './routes/wallet.js';
 import leaseRoutes from './routes/lease.js';
 import s3Routes from './routes/s3Routes.js';
@@ -40,7 +40,7 @@ import AgentPayment from './models/AgentPayment.js';
 import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY_TEST);
 
-stripe.customers.list({ limit: 5 }).then(r => console.log("Customers:", r.data));
+//stripe.customers.list({ limit: 5 }).then(r => console.log("Customers:", r.data));
 
 
 const app = express();
@@ -83,8 +83,6 @@ app.use('/api/stripe', stripeRoutes);
 // ---------- ROUTE MOUNTS ----------
 app.use('/api/auth', authRoutes);
 app.use('/api/protected', protectedRoutes);
-app.use('/api/auth/verify-email', verifyRoute);
-app.use('/api/auth/reset', resetRoute);
 app.use('/api/wallet', walletRoutes);
 app.use('/api/lease', leaseRoutes);
 app.use('/api/s3', s3Routes);
@@ -110,7 +108,11 @@ mongoose
     console.log('✅ MongoDB connected successfully');
 
     console.log('🧱 Syncing indexes...');
-    await Promise.all([AgentPayment.syncIndexes()]);
+    await Promise.all([
+      AgentPayment.syncIndexes(),
+      User.syncIndexes(),
+      Verification.syncIndexes(),
+    ]);
     console.log('🧱 Indexes synced');
 
     const PORT = process.env.PORT || 5000;

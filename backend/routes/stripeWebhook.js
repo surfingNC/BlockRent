@@ -123,6 +123,46 @@ async function sendConfirmationEmail(doc) {
 }
 
 /* --------------------------------------------------------
+ * DEALERSHIP WELCOME EMAIL (send once)
+ * -------------------------------------------------------- */
+async function sendDealerWelcomeEmail({ toEmail, dealer, planType }) {
+  if (!resend || !toEmail) return;
+
+  const dealershipName =
+    dealer?.dealershipName ||
+    dealer?.name ||
+    dealer?.title ||
+    'your dealership';
+
+  const base = process.env.PUBLIC_APP_URL || 'http://localhost:3000';
+
+  try {
+    await resend.emails.send({
+      from: EMAIL_FROM,
+      to: toEmail,
+      subject: 'Your BlockRent dealership listing is live',
+      html: `
+        <div style="font-family: sans-serif; padding: 16px;">
+          <h2>Welcome to BlockRent</h2>
+          <p>Good news — <b>${dealershipName}</b> is now listed and ready to receive applications.</p>
+          <p>Plan: <b>${planType || 'dealership'}</b></p>
+          <p>
+            You can manage your listing and view applications from your dashboard:
+            <a href="${base}/dashboard">Open Dashboard</a>
+          </p>
+          <p style="margin-top: 16px; color: #555;">
+            If you have any issues, reply to this email and we’ll help you get set up.
+          </p>
+        </div>
+      `,
+    });
+  } catch (err) {
+    console.error('❌ Dealer welcome email send error:', err);
+  }
+}
+
+
+/* --------------------------------------------------------
  * SAVE & SYNC DEALER SUBSCRIPTIONS
  * -------------------------------------------------------- */
 async function saveDealerSubscription(subscription, email, planType) {
