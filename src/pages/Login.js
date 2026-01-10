@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import Header from '../components/Header.js';
 
 function Login() {
+  const tutorialUrl = 'https://www.youtube.com/watch?v=aXkDFB2oFdE';
+
   const [identifier, setIdentifier] = useState(''); // <-- renamed from username
   const [password, setPassword] = useState('');
   const [btcPrice, setBtcPrice] = useState(null);
@@ -266,6 +268,39 @@ function Login() {
               <span>Powered by UniSat</span>
             </a>
           </div>
+
+          {/* === Tutorial link (beneath UniSat button) === */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              marginTop: '14px',
+              textAlign: 'center',
+            }}
+          >
+            <a
+              href={tutorialUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                fontSize: '1.1rem',          // bigger
+                fontWeight: 700,             // bold
+                color: '#1d4ed8',            // traditional-ish blue (tailwind "blue-700")
+                textDecoration: 'underline',
+                textUnderlineOffset: '3px',
+                backgroundColor: 'rgba(255,255,255,0.92)', // makes it readable on any background
+                padding: '6px 10px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
+                lineHeight: 1.2,
+              }}
+            >
+              Watch the quick tutorial (YouTube)
+            </a>
+          </div>
+
+
+
         </div>
       </div>
     </div>

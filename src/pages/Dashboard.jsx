@@ -214,7 +214,7 @@ return (
       </div>
 
       {/* AUTOMOTIVE SECTION */}
-      <h2 style={{ marginTop: '3rem', color: '#1e293b' }}>🚗 Automotive Leasing</h2>
+      <h2 style={{ marginTop: '3rem', color: '#1e293b' }}>🚗 Automotive Financing</h2>
 
       <div style={{ marginTop: '0.5rem', marginBottom: '1rem' }}>
         {renderDealerBadge()}

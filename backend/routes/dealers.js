@@ -123,11 +123,18 @@ router.post('/create', authMiddleware, async (req, res) => {
     await dealer.save();
 
     // Optional welcome email
-    try {
-      await sendDealerWelcomeEmail(dealer);
-    } catch (e) {
-      console.warn('⚠️ Welcome email failed:', e.message);
-    }
+// Optional welcome email (send once)
+if (!dealer.welcomeEmailSentAt) {
+  try {
+    await sendDealerWelcomeEmail(dealer);
+
+    dealer.welcomeEmailSentAt = new Date();
+    await dealer.save();
+  } catch (e) {
+    console.warn('⚠️ Welcome email failed:', e.message);
+  }
+}
+
 
     return res.status(201).json({ message: 'Dealer profile created', dealer });
   } catch (err) {
