@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
+import Lightbox from '../components/Lightbox';
 
 function Listings() {
   const [filtered, setFiltered] = useState([]);
@@ -8,9 +9,7 @@ function Listings() {
   const [radius, setRadius] = useState('25');
   const [lightbox, setLightbox] = useState({ open: false, images: [], index: 0 });
   const [applyModal, setApplyModal] = useState({ open: false, listing: null });
-
-  // NEW: sort option
-  const [priceSort, setPriceSort] = useState('none'); // 'none' | 'low' | 'high'
+  const [priceSort, setPriceSort] = useState('none');
 
   const API_URL = 'http://localhost:5000';
 
@@ -25,11 +24,8 @@ function Listings() {
 
       let results = data;
 
-      if (state) {
-        results = results.filter((l) => l.state === state);
-      }
+      if (state) results = results.filter((l) => l.state === state);
 
-      // Filter by distance radius
       results = results.filter(
         (l) => typeof l.distance === 'number' && l.distance <= parseInt(radius)
       );
@@ -84,6 +80,7 @@ function Listings() {
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Application failed');
+
       alert('Application submitted successfully.');
       setApplyModal({ open: false, listing: null });
     } catch (err) {
@@ -92,52 +89,35 @@ function Listings() {
     }
   };
 
-  // NEW: sorted view of filtered results (does NOT mutate state)
   const visibleListings = useMemo(() => {
     const arr = [...filtered];
 
     const toNumber = (v) => {
-      // supports numbers and numeric strings; strips $ and commas if they sneak in
       const n = Number(String(v ?? '').replace(/[$,]/g, ''));
       return Number.isFinite(n) ? n : null;
     };
 
     if (priceSort === 'low') {
-      arr.sort((a, b) => {
-        const pa = toNumber(a.price);
-        const pb = toNumber(b.price);
-        if (pa === null && pb === null) return 0;
-        if (pa === null) return 1; // push unknown prices to bottom
-        if (pb === null) return -1;
-        return pa - pb;
-      });
+      arr.sort((a, b) => (toNumber(a.price) ?? 999999) - (toNumber(b.price) ?? 999999));
     } else if (priceSort === 'high') {
-      arr.sort((a, b) => {
-        const pa = toNumber(a.price);
-        const pb = toNumber(b.price);
-        if (pa === null && pb === null) return 0;
-        if (pa === null) return 1;
-        if (pb === null) return -1;
-        return pb - pa;
-      });
+      arr.sort((a, b) => (toNumber(b.price) ?? -1) - (toNumber(a.price) ?? -1));
     }
 
     return arr;
   }, [filtered, priceSort]);
 
   return (
-    <div>
-      <DashboardHeader username={localStorage.getItem('username') || ''} />
-      <div style={{ padding: '2rem' }}>
-        <h2>Available Listings</h2>
+    <div className="dashboard-page">
+      <div className="dashboard-grid-overlay" />
 
-        {/* Filter UI */}
-        <div style={{ marginBottom: '1rem' }}>
-          <select
-            value={selectedState}
-            onChange={handleFilterChange}
-            style={{ padding: '0.5rem', fontSize: '1rem', marginRight: '1rem' }}
-          >
+      <DashboardHeader username={localStorage.getItem('username') || ''} />
+
+      <div className="dashboard-container">
+        <h2 className="section-title">Available Listings</h2>
+
+        {/* FILTER BAR */}
+        <div className="glass-card filter-bar">
+          <select value={selectedState} onChange={handleFilterChange} className="glass-select">
             <option value="">All States</option>
             {[
               'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
@@ -155,76 +135,61 @@ function Listings() {
             value={zipInput}
             onChange={(e) => setZipInput(e.target.value)}
             placeholder="ZIP (e.g. 28405)"
-            style={{ padding: '0.5rem', marginRight: '0.5rem', width: '100px' }}
+            className="glass-input"
           />
 
-          <select
-            value={radius}
-            onChange={(e) => setRadius(e.target.value)}
-            style={{ padding: '0.5rem', marginRight: '0.5rem' }}
-          >
+          <select value={radius} onChange={(e) => setRadius(e.target.value)} className="glass-select">
             {[5, 10, 25, 50, 100].map((r) => (
-              <option key={r} value={r}>
-                Within {r} miles
-              </option>
+              <option key={r} value={r}>Within {r} miles</option>
             ))}
           </select>
 
-          <button onClick={handleZipSort} style={{ padding: '0.5rem 1rem' }}>
+          <button onClick={handleZipSort} className="glass-btn">
             Search
           </button>
         </div>
 
-        {/* NEW: Sort row (beneath the search bar) */}
-        <div style={{ marginBottom: '1.5rem' }}>
-          <label style={{ marginRight: '0.5rem', color: '#333' }}>Sort by:</label>
+        {/* SORT */}
+        <div className="sort-row">
+          <span>Sort by:</span>
           <select
             value={priceSort}
             onChange={(e) => setPriceSort(e.target.value)}
-            style={{ padding: '0.5rem' }}
-            disabled={zipInput === ''} // optional: prevents sorting before search
+            className="glass-select"
           >
-            <option value="none">Recommended (default)</option>
+            <option value="none">Recommended</option>
             <option value="low">Price: Low to High</option>
             <option value="high">Price: High to Low</option>
           </select>
         </div>
 
-        {/* Listings */}
-        {zipInput === '' ? (
-          <p style={{ marginTop: '2rem', color: '#888' }}>
-            Please enter a ZIP code and click "Search" to view listings nearby.
-          </p>
-        ) : (
-          <>
-            {visibleListings.length === 0 ? (
-              <p style={{ marginTop: '2rem', color: '#888' }}>
-                No listings found within {radius} miles of ZIP {zipInput}
-                {selectedState && ` in ${selectedState}`}.
-              </p>
-            ) : (
-              visibleListings.map((listing, index) => (
-                <div key={listing._id}>
-                  <ListingCard
-                    listing={listing}
-                    zipRef={zipInput}
-                    setLightbox={setLightbox}
-                    openApply={() => setApplyModal({ open: true, listing })}
-                  />
-                  {index < visibleListings.length - 1 && <hr style={{ margin: '2rem 0' }} />}
-                </div>
-              ))
-            )}
-          </>
-        )}
+        {/* LISTINGS */}
+        <div className="listings-grid">
+          {zipInput === '' ? (
+            <p className="empty-text">
+              Please enter a ZIP code and click "Search" to view listings nearby.
+            </p>
+          ) : visibleListings.length === 0 ? (
+            <p className="empty-text">
+              No listings found within {radius} miles of ZIP {zipInput}.
+            </p>
+          ) : (
+            visibleListings.map((listing) => (
+              <ListingCard
+                key={listing._id}
+                listing={listing}
+                zipRef={zipInput}
+                setLightbox={setLightbox}
+                openApply={() => setApplyModal({ open: true, listing })}
+              />
+            ))
+          )}
+        </div>
 
         {lightbox.open && (
-          <Lightbox
-            images={lightbox.images}
-            index={lightbox.index}
-            setLightbox={setLightbox}
-          />
+          <Lightbox images={lightbox.images} index={lightbox.index} onClose={() => setLightbox({ open: false, images: [], index: 0 })}/>
         )}
+
         {applyModal.open && (
           <ApplyForm
             listing={applyModal.listing}
@@ -242,37 +207,48 @@ function ListingCard({ listing, zipRef, setLightbox, openApply }) {
 
   const nextImage = () =>
     setCurrentImage((prev) => (prev + 1) % listing.imageUrls.length);
+
   const prevImage = () =>
     setCurrentImage((prev) => (prev - 1 + listing.imageUrls.length) % listing.imageUrls.length);
 
   return (
-    <div style={{ border: '1px solid #ddd', borderRadius: '8px', padding: '1rem', backgroundColor: '#fff' }}>
-      {listing.imageUrls && listing.imageUrls.length > 0 && (
-        <div style={{ position: 'relative', width: '100%', height: '200px', overflow: 'hidden' }}>
+    <div className="glass-card listing-card">
+      {listing.imageUrls?.length > 0 && (
+        <div className="listing-image-container">
           <img
             src={listing.imageUrls[currentImage]}
             alt="Property"
-            style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }}
-            onClick={() => setLightbox({ open: true, images: listing.imageUrls, index: currentImage })}
+            className="listing-image"
+            onClick={() =>
+              setLightbox({ open: true, images: listing.imageUrls, index: currentImage })
+            }
           />
-          <button onClick={prevImage} style={{ position: 'absolute', top: '50%', left: '5px' }}>&lt;</button>
-          <button onClick={nextImage} style={{ position: 'absolute', top: '50%', right: '5px' }}>&gt;</button>
-          <div style={{ textAlign: 'center', marginTop: '5px' }}>
-            {currentImage + 1}/{listing.imageUrls.length} photos
+
+          <button onClick={prevImage} className="image-nav left">‹</button>
+          <button onClick={nextImage} className="image-nav right">›</button>
+
+          <div className="image-counter">
+            {currentImage + 1}/{listing.imageUrls.length}
           </div>
         </div>
       )}
+
       <h3>{listing.streetAddress}</h3>
       <p>Zip: {listing.zipCode} | State: {listing.state}</p>
-      {listing.distance !== undefined && !isNaN(listing.distance) && (
-        <p style={{ fontStyle: 'italic', color: '#555' }}>
+
+      {listing.distance !== undefined && (
+        <p className="distance-text">
           Approx. {listing.distance} miles from {zipRef}
         </p>
       )}
+
       <p>{listing.description}</p>
       <p>Contact: {listing.contactEmail}</p>
-      <p>Price: ${listing.price} / month</p>
-      <button onClick={openApply} style={{ marginTop: '10px' }}>Apply for Rent</button>
+      <p className="price">${listing.price} / month</p>
+
+      <button onClick={openApply} className="glass-btn">
+        Apply for Rent
+      </button>
     </div>
   );
 }
@@ -288,76 +264,46 @@ function ApplyForm({ listing, onSubmit, onClose }) {
   };
 
   return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex',
-      justifyContent: 'center', alignItems: 'center', zIndex: 1000
-    }}>
-      <form
-        onSubmit={handleSubmit}
-        style={{ background: '#fff', padding: '2rem', borderRadius: '8px', maxWidth: '400px', width: '100%' }}
-      >
+    <div className="modal-overlay">
+      <form onSubmit={handleSubmit} className="glass-card modal-card">
         <h2>Apply for {listing.streetAddress}</h2>
+
         <input
-          type="text"
+          className="glass-input"
           placeholder="Your Name"
           value={applicantName}
           onChange={(e) => setApplicantName(e.target.value)}
           required
         />
+
         <input
+          className="glass-input"
           type="email"
           placeholder="Your Email"
           value={applicantEmail}
           onChange={(e) => setApplicantEmail(e.target.value)}
           required
         />
+
         <textarea
+          className="glass-input"
           placeholder="Message about yourself"
           value={messageText}
           onChange={(e) => setMessageText(e.target.value)}
           required
         />
-        <button type="submit">Submit Application</button>
-        <button type="button" onClick={onClose} style={{ marginLeft: '10px' }}>Cancel</button>
+
+        <div className="modal-actions">
+          <button type="submit" className="glass-btn">Submit</button>
+          <button type="button" onClick={onClose} className="glass-btn">
+            Cancel
+          </button>
+        </div>
       </form>
     </div>
   );
 }
 
-function Lightbox({ images, index, setLightbox }) {
-  const [current, setCurrent] = useState(index);
 
-  const next = () => setCurrent((prev) => (prev + 1) % images.length);
-  const prev = () => setCurrent((prev) => (prev - 1 + images.length) % images.length);
-
-  return (
-    <div style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.8)', display: 'flex',
-      justifyContent: 'center', alignItems: 'center', zIndex: 1000
-    }}>
-      <button
-        onClick={() => setLightbox({ open: false, images: [], index: 0 })}
-        style={{ position: 'absolute', top: '10px', right: '10px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}
-      >
-        ×
-      </button>
-      <button
-        onClick={prev}
-        style={{ position: 'absolute', top: '50%', left: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}
-      >
-        &lt;
-      </button>
-      <img src={images[current]} alt="Property" style={{ maxWidth: '90%', maxHeight: '90%' }} />
-      <button
-        onClick={next}
-        style={{ position: 'absolute', top: '50%', right: '20px', fontSize: '24px', color: 'white', background: 'none', border: 'none' }}
-      >
-        &gt;
-      </button>
-    </div>
-  );
-}
 
 export default Listings;

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
+import Header from '../components/Header.js';
 
 function VerifyEmail() {
   const [code, setCode] = useState('');
@@ -65,37 +66,115 @@ function VerifyEmail() {
   };
 
   return (
-    <div className="app-container">
-      <div className="login-box">
-        <h2>Verify Your Email</h2>
+    <div className="login-page">
+      <Header />
 
-        {email && (
-          <p style={{ color: '#555' }}>
-            Enter the 6-digit code sent to <strong>{email}</strong>.
-          </p>
-        )}
+      {/* Background system */}
+      <div
+        className="login-bg-image"
+        style={{
+          backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
+        }}
+      />
+      <div className="login-grid-overlay" />
+      <div className="login-glow login-glow-1" />
+      <div className="login-glow login-glow-2" />
 
-        {error && <p style={{ color: 'red' }}>{error}</p>}
+      <div className="login-main">
+        <div className="login-shell">
 
-        <form onSubmit={handleSubmit}>
-          <div className="input-group">
-            <label htmlFor="code">6-digit Code</label>
-            <input
-              type="text"
-              id="code"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              required
-              inputMode="numeric"
-              pattern="\d{6}"
-              maxLength={6}
-              disabled={!email || submitting}
-            />
+          {/* LEFT PANEL */}
+          <div className="login-brand-panel">
+            <div className="brand-badge">
+              Email Verification
+            </div>
+
+            <h1 className="brand-title">
+              Confirm your <span>identity</span>.
+            </h1>
+
+            <p className="brand-subtitle">
+              We’ve sent a secure 6-digit verification code to your email. Enter it to activate your account.
+            </p>
+
+            <div className="brand-feature-list">
+              <div className="brand-feature-card">
+                <span className="brand-feature-icon">📩</span>
+                <div>
+                  <h4>Secure Delivery</h4>
+                  <p>Verification codes are sent instantly to your email.</p>
+                </div>
+              </div>
+
+              <div className="brand-feature-card">
+                <span className="brand-feature-icon">🔐</span>
+                <div>
+                  <h4>Protected Access</h4>
+                  <p>Ensures only you can activate your account.</p>
+                </div>
+              </div>
+
+              <div className="brand-feature-card">
+                <span className="brand-feature-icon">⚡</span>
+                <div>
+                  <h4>Fast Activation</h4>
+                  <p>Complete setup and access your dashboard instantly.</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <button type="submit" disabled={!email || submitting}>
-            {submitting ? 'Verifying...' : 'Verify'}
-          </button>
-        </form>
+
+          {/* RIGHT PANEL */}
+          <div className="login-card">
+            <div className="login-card-header">
+              <div className="login-chip">Verification</div>
+              <h2>Enter code</h2>
+              <p>
+                {email
+                  ? `Code sent to ${email}`
+                  : 'Enter your verification code'}
+              </p>
+            </div>
+
+            {error && <div className="error-message">{error}</div>}
+
+            <form onSubmit={handleSubmit} className="login-form">
+
+              <div className="modern-input-group">
+                <label>6-digit Code</label>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  disabled={!email || submitting}
+                  style={{
+                    letterSpacing: '6px',
+                    textAlign: 'center',
+                    fontSize: '1.2rem',
+                  }}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="login-btn"
+                disabled={!email || submitting}
+              >
+                {submitting ? 'Verifying...' : 'Verify Email'}
+              </button>
+            </form>
+
+            <div className="login-footer-text">
+              Wrong email? <Link to="/register">Register again</Link>
+            </div>
+
+          </div>
+
+        </div>
       </div>
     </div>
   );

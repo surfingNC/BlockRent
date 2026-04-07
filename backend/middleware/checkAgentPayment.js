@@ -18,13 +18,15 @@ export default async function checkAgentPayment(req, res, next) {
     // Find a confirmed, valid payment record for this user
     const payment = await AgentPayment.findOne({
       email: user.email.toLowerCase(),
+      category: 'real_estate',
       confirmed: true,
       $or: [
         { validUntil: null },           // lifetime / pay-per-listing plan
         { validUntil: { $gt: now } },   // active subscription
       ],
     })
-      .sort({ validUntil: -1 })
+      // Choose the most recent active entitlement deterministically
+      .sort({ validUntil: -1, latestEventAt: -1, timestamp: -1 })
       .lean(false);
 
     if (!payment) {

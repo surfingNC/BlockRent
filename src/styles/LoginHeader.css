@@ -1,0 +1,81 @@
+/* ===== LOGIN HEADER (HERO MODE) ===== */
+
+.blockrent-header--login {
+  padding: 0 24px;              /* 🔥 remove vertical padding */
+  height: 120px;                /* 🔥 FIXED HEIGHT (controls everything) */
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  position: relative;
+  overflow: hidden;             /* 🔥 prevents any visual overflow */
+}
+
+/* ===== LOGO CONTAINER ===== */
+.blockrent-header--login .blockrent-header-logo-link {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+
+  display: flex;
+  align-items: center;
+
+  margin: 0;
+  padding: 0;
+}
+
+/* ===== LOGO (PERFECTLY FITS HEADER) ===== */
+.blockrent-header--login .blockrent-header-logo {
+  height: 100%;        /* 🔥 THIS is the key */
+  max-height: 100%;    /* ensures no overflow */
+  width: auto;
+
+  display: block;
+
+  /* controlled glow */
+  filter:
+    drop-shadow(0 0 10px rgba(247,147,26,0.25))
+    drop-shadow(0 0 28px rgba(247,147,26,0.12));
+
+  animation: logoPulse 4s ease-in-out infinite;
+  transition: transform 0.25s ease;
+}
+
+.blockrent-header--login .blockrent-header-logo:hover {
+  transform: scale(1.04);
+}
+
+/* ===== AMBIENT GLOW ===== */
+.blockrent-header-login-glow {
+  position: absolute;
+  top: -70px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 560px;
+  height: 240px;
+
+  background: radial-gradient(
+    ellipse,
+    rgba(247,147,26,0.20),
+    transparent 70%
+  );
+
+  filter: blur(50px);
+  pointer-events: none;
+}
+
+/* ===== SUBTLE PULSE ===== */
+@keyframes logoPulse {
+  0%, 100% {
+    filter:
+      drop-shadow(0 0 8px rgba(247,147,26,0.22))
+      drop-shadow(0 0 18px rgba(247,147,26,0.10));
+  }
+  50% {
+    filter:
+      drop-shadow(0 0 18px rgba(247,147,26,0.38))
+      drop-shadow(0 0 42px rgba(247,147,26,0.22));
+  }
+}

@@ -1,0 +1,73 @@
+/* /styles/base.css */
+
+/* RESET */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, sans-serif;
+  color: var(--color-text-primary);
+
+  background:
+    radial-gradient(circle at 20% 20%, rgba(247,147,26,0.08), transparent 30%),
+    radial-gradient(circle at 80% 70%, rgba(247,147,26,0.06), transparent 30%),
+    linear-gradient(180deg, #090808 0%, #0b0908 50%, #070707 100%);
+}
+
+/* GLOBAL LINKS */
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+/* PAGE CONTAINER */
+.page-container {
+  max-width: 900px;
+  margin: auto;
+  padding: var(--space-lg);
+  position: relative;
+  z-index: 2;
+}
+
+/* GRID OVERLAY */
+.grid-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+  background-size: 40px 40px;
+  z-index: 0;
+}
+
+/* BTC PARTICLES */
+.btc-particles {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.btc-particle {
+  position: absolute;
+  color: var(--color-accent);
+  font-size: 18px;
+  opacity: 0.7;
+  animation: btcFall linear infinite;
+}
+
+.btc-particle:nth-child(1) { left: 10%; animation-duration: 12s; }
+.btc-particle:nth-child(2) { left: 25%; animation-duration: 16s; }
+.btc-particle:nth-child(3) { left: 40%; animation-duration: 14s; }
+.btc-particle:nth-child(4) { left: 60%; animation-duration: 18s; }
+.btc-particle:nth-child(5) { left: 75%; animation-duration: 15s; }
+.btc-particle:nth-child(6) { left: 90%; animation-duration: 20s; }
+
+@keyframes btcFall {
+  0% { transform: translateY(-10vh); opacity: 0; }
+  10% { opacity: 0.7; }
+  100% { transform: translateY(110vh); opacity: 0; }
+}

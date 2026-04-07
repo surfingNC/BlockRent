@@ -1,507 +1,334 @@
 // backend/routes/stripeWebhook.js
 import express from 'express';
 import Stripe from 'stripe';
+import { Resend } from 'resend';
+
 import Dealer from '../models/Dealer.js';
 import AgentPayment from '../models/AgentPayment.js';
-import { Resend } from 'resend';
 import { computeAccessFromPlan } from './stripe.js';
 
 const router = express.Router();
 
+/* --------------------------------------------------------
+ * STRIPE CONFIG (LAZY + ESM-SAFE)
+ * -------------------------------------------------------- */
+function getStripeMode() {
+  return process.env.STRIPE_MODE === 'test' ? 'test' : 'live';
+}
+
+function getStripeSecret(mode) {
+  const key =
+    mode === 'test'
+      ? process.env.STRIPE_SECRET_KEY_TEST
+      : process.env.STRIPE_SECRET_KEY_LIVE;
+
+  if (!key) {
+    throw new Error(
+      `[stripeWebhook] Missing Stripe secret key for mode "${mode}". Set STRIPE_SECRET_KEY_${mode === 'test' ? 'TEST' : 'LIVE'} in env.`
+    );
+  }
+  return key;
+}
+
+function getStripeWebhookSecret(mode) {
+  const wh =
+    mode === 'test'
+      ? process.env.STRIPE_WEBHOOK_SECRET_TEST
+      : process.env.STRIPE_WEBHOOK_SECRET_LIVE;
+
+  if (!wh) {
+    throw new Error(
+      `[stripeWebhook] Missing Stripe webhook secret for mode "${mode}". Set STRIPE_WEBHOOK_SECRET_${mode === 'test' ? 'TEST' : 'LIVE'} in env.`
+    );
+  }
+  return wh;
+}
+
+// Stripe client is created lazily so env vars don't have to exist at import-time (ESM-safe).
+let stripeClient = null;
+function getStripe() {
+  if (stripeClient) return stripeClient;
+  const mode = getStripeMode();
+  const key = getStripeSecret(mode);
+  stripeClient = new Stripe(key, { apiVersion: '2024-06-20' });
+  return stripeClient;
+}
+
+function getEndpointSecret() {
+  const mode = getStripeMode();
+  return getStripeWebhookSecret(mode);
+}
 
 /* --------------------------------------------------------
- * STRIPE CONFIG
+ * RESEND EMAIL (Optional)
  * -------------------------------------------------------- */
-const STRIPE_MODE = process.env.STRIPE_MODE === 'test' ? 'test' : 'live';
-
-const STRIPE_SECRET =
-  STRIPE_MODE === 'test'
-    ? process.env.STRIPE_SECRET_KEY_TEST
-    : process.env.STRIPE_SECRET_KEY_LIVE;
-
-const STRIPE_WEBHOOK_SECRET =
-  STRIPE_MODE === 'test'
-    ? process.env.STRIPE_WEBHOOK_SECRET_TEST
-    : process.env.STRIPE_WEBHOOK_SECRET_LIVE;
-
-const stripe = new Stripe(STRIPE_SECRET, { apiVersion: '2024-06-20' });
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'BlockRent <noreply@blockrent.app>';
 
 /* --------------------------------------------------------
- * DEALERSHIP PRICE IDS
+ * Helpers
  * -------------------------------------------------------- */
-const DEALER_PRICES = {
-  dealership_monthly:
-    STRIPE_MODE === 'test'
-      ? process.env.STRIPE_DEALER_MONTHLY_TEST
-      : process.env.STRIPE_DEALER_MONTHLY_LIVE,
-  dealership_annual:
-    STRIPE_MODE === 'test'
-      ? process.env.STRIPE_DEALER_ANNUAL_TEST
-      : process.env.STRIPE_DEALER_ANNUAL_LIVE,
-};
+function normEmail(v) {
+  return String(v || '').trim().toLowerCase();
+}
 
-function planTypeFromPriceId(priceId) {
-  if (!priceId) return null;
+function normStr(v) {
+  return String(v || '').trim().toLowerCase();
+}
 
-  if (priceId === DEALER_PRICES.dealership_monthly) return 'dealership_monthly';
-  if (priceId === DEALER_PRICES.dealership_annual) return 'dealership_annual';
+function eventDateFromEvent(event) {
+  const t = Number(event?.created);
+  if (!Number.isFinite(t)) return new Date();
+  return new Date(t * 1000);
+}
 
+function mapDealerType(planType) {
+  const t = normStr(planType);
+  if (t === 'dealership_monthly' || t === 'dealership_annual') return t;
+  if (t === 'monthly') return 'dealership_monthly';
+  if (t === 'annual' || t === 'yearly') return 'dealership_annual';
   return null;
 }
 
-/* --------------------------------------------------------
- * REAL-ESTATE EMAIL SENDER
- * -------------------------------------------------------- */
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
-
-const EMAIL_FROM =
-  process.env.EMAIL_FROM || 'BlockRent <noreply@blockrent.app>';
-
-/* --------------------------------------------------------
- * HELPERS
- * -------------------------------------------------------- */
-
-function normalizeEmail(email) {
-  return String(email || '').toLowerCase().trim();
+function isDealerActive({ status, currentPeriodEnd }) {
+  const s = String(status || 'inactive');
+  if (s !== 'active' && s !== 'trialing') return false;
+  if (!currentPeriodEnd) return true;
+  return new Date(currentPeriodEnd).getTime() > Date.now();
 }
 
-/** Ensure dealer detection is metadata-first (strongest) */
-function isDealershipSubscription(subscription) {
-  if (!subscription) return false;
-
-  // 1️⃣ Strongest: explicit category
-  if (subscription.metadata?.category === 'dealership') return true;
-  if (subscription.metadata?.category === 'real_estate') return false;
-
-  // 2️⃣ Fallback: price ID match
-  const priceIds = Object.values(DEALER_PRICES).filter(Boolean);
-
-  return subscription.items?.data?.some((item) =>
-    priceIds.includes(item.price?.id)
-  );
-}
-
-function isRealEstateCheckoutSession(session) {
-  if (!session) return false;
-  return session.metadata?.category === 'real_estate';
-}
-
-/* --------------------------------------------------------
- * REAL-ESTATE CONFIRMATION EMAIL
- * -------------------------------------------------------- */
-async function sendConfirmationEmail(doc) {
-  if (!resend || !doc?.email) return;
-
+async function safeSendReceiptEmail({ to, planType, validUntil }) {
+  if (!resend || !to) return;
   try {
     await resend.emails.send({
       from: EMAIL_FROM,
-      to: doc.email,
-      subject: 'Your BlockRent subscription is active',
-      html: `
-        <div style="font-family: sans-serif; padding: 16px;">
-          <h2>Your BlockRent subscription is active</h2>
-          <p>Plan: <b>${doc.type}</b></p>
-          <p>Amount Paid: $${(doc.amountPaid / 100).toFixed(2)}</p>
-          <p>${
-            doc.validUntil
-              ? `Valid until: ${new Date(doc.validUntil).toLocaleString()}`
-              : 'Lifetime Access'
-          }</p>
-        </div>
-      `,
-    });
-
-    await AgentPayment.updateOne(
-      { _id: doc._id },
-      { confirmationEmailSentAt: new Date() }
-    );
-  } catch (err) {
-    console.error('❌ Email send error:', err);
-  }
-}
-
-/* --------------------------------------------------------
- * DEALERSHIP WELCOME EMAIL (send once)
- * -------------------------------------------------------- */
-async function sendDealerWelcomeEmail({ toEmail, dealer, planType }) {
-  if (!resend || !toEmail) return;
-
-  const dealershipName =
-    dealer?.dealershipName ||
-    dealer?.name ||
-    dealer?.title ||
-    'your dealership';
-
-  const base = process.env.PUBLIC_APP_URL || 'http://localhost:3000';
-
-  try {
-    await resend.emails.send({
-      from: EMAIL_FROM,
-      to: toEmail,
-      subject: 'Your BlockRent dealership listing is live',
-      html: `
-        <div style="font-family: sans-serif; padding: 16px;">
-          <h2>Welcome to BlockRent</h2>
-          <p>Good news — <b>${dealershipName}</b> is now listed and ready to receive applications.</p>
-          <p>Plan: <b>${planType || 'dealership'}</b></p>
-          <p>
-            You can manage your listing and view applications from your dashboard:
-            <a href="${base}/dashboard">Open Dashboard</a>
-          </p>
-          <p style="margin-top: 16px; color: #555;">
-            If you have any issues, reply to this email and we’ll help you get set up.
-          </p>
-        </div>
-      `,
+      to,
+      subject: 'BlockRent Purchase Confirmed',
+      html: `<p>Your plan <strong>${planType}</strong> is active until <strong>${validUntil.toDateString()}</strong>.</p>`,
     });
   } catch (err) {
-    console.error('❌ Dealer welcome email send error:', err);
+    console.warn('📧 Resend receipt failed (continuing):', err?.message || err);
   }
 }
 
-
 /* --------------------------------------------------------
- * SAVE & SYNC DEALER SUBSCRIPTIONS
+ * WEBHOOK: POST /api/stripe/webhook
+ * IMPORTANT: server.js must mount this route with:
+ *   app.use('/api/stripe/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+ * so req.body is the RAW Buffer here.
  * -------------------------------------------------------- */
-async function saveDealerSubscription(subscription, email, planType) {
-  if (!subscription) return;
-  if (!isDealershipSubscription(subscription)) return;
+router.post('/', async (req, res) => {
+  const stripe = getStripe();
+  const endpointSecret = getEndpointSecret();
 
-  // If period fields are missing, re-fetch a full subscription object from Stripe
-  let sub = subscription;
-  if (!sub.current_period_start || !sub.current_period_end) {
-    try {
-      sub = await stripe.subscriptions.retrieve(subscription.id);
-    } catch (err) {
-      console.error('❌ stripe.subscriptions.retrieve failed:', err?.message || err);
-      // proceed with what we have
-    }
-  }
-  console.log('SUB PERIODS', sub.id, sub.current_period_start, sub.current_period_end);
-
-  const normalizedEmail = normalizeEmail(
-    email ||
-      sub.metadata?.email ||
-      sub.items?.data?.[0]?.price?.metadata?.email ||
-      ''
-  );
-
-  const price = sub.items?.data?.[0]?.price || null;
-  const priceId = price?.id || null;
-
-  let normalizedPlanType =
-    planTypeFromPriceId(priceId) ||
-    String(planType || sub.metadata?.planType || '').toLowerCase().trim();
-
-  if (!['dealership_monthly', 'dealership_annual'].includes(normalizedPlanType)) {
-    normalizedPlanType = planTypeFromPriceId(priceId) || 'dealership_monthly';
+  const sig = req.headers['stripe-signature'];
+  if (!sig) {
+    return res.status(400).send('Webhook Error: Missing Stripe-Signature header');
   }
 
-  const start =
-    sub.current_period_start ? new Date(sub.current_period_start * 1000) : null;
-
-  const end =
-    sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
-
-  const interval = price?.recurring?.interval || null;
-  const access = computeAccessFromPlan(normalizedPlanType);
-
-  // Build update so we never stomp good values with null
-  const update = {
-    email: normalizedEmail,
-    type: normalizedPlanType,
-    category: 'dealership',
-    provider: 'stripe',
-    mode: 'subscription',
-    subscriptionId: sub.id,
-
-    customerId: sub.customer || null,
-    confirmed: ['active', 'trialing'].includes(sub.status),
-
-    subscriptionStatus: sub.status,
-    cancelAtPeriodEnd: sub.cancel_at_period_end ?? null,
-    priceId: priceId || null,
-    productId: price?.product || null,
-    subscriptionInterval: interval,
-    latestEventAt: new Date(),
-    ...(access || {}),
-  };
-
-  if (start) update.currentPeriodStart = start;
-  if (end) {
-    update.currentPeriodEnd = end;
-    update.validUntil = end;
-  }
-
-  const doc = await AgentPayment.findOneAndUpdate(
-    { subscriptionId: sub.id },
-    { $set: update },
-    { upsert: true, new: true }
-  );
-
-  // Sync Dealer model (only write validUntil if we have it)
+  let event;
   try {
-    const now = new Date();
-    const isGoodStatus = ['active', 'trialing'].includes(sub.status);
-    const isActive = Boolean(isGoodStatus && end && end.getTime() > now.getTime());
-
-    const dealerUpdate = {
-      subscriptionStatus: sub.status,
-      acceptingApplications: isActive,
-    };
-    if (end) dealerUpdate.subscriptionValidUntil = end;
-
-    await Dealer.updateMany({ contactEmail: normalizedEmail }, dealerUpdate);
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (err) {
-    console.error('❌ Failed to sync Dealer subscription:', err);
+    console.error('❌ Stripe webhook signature verification failed:', err?.message || err);
+    return res.status(400).send(`Webhook Error: ${err?.message || 'Invalid signature'}`);
   }
 
-  return doc;
-}
+  try {
+    switch (event.type) {
+      /* ---------------------------------
+       * ONE-TIME PAYMENTS (REAL ESTATE)
+       * --------------------------------- */
+      case 'checkout.session.completed': {
+        const session = event.data.object;
 
+        // Only handle one-time purchases here
+        if (session?.mode !== 'payment') break;
+        if (session?.payment_status !== 'paid') break;
 
+        const email = normEmail(
+          session?.metadata?.email ||
+            session?.customer_details?.email ||
+            session?.customer_email ||
+            ''
+        );
 
-/* --------------------------------------------------------
- * MAIN WEBHOOK ENDPOINT
- * -------------------------------------------------------- */
-router.post(
-  '/',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    let event;
+        const planType = normStr(session?.metadata?.planType || '');
+        const category = normStr(session?.metadata?.category || '');
 
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        req.headers['stripe-signature'],
-        STRIPE_WEBHOOK_SECRET
-      );
-    } catch (err) {
-      console.error('❌ Invalid Stripe webhook signature:', err.message);
-      return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
+        if (category !== 'real_estate' || !email || !planType) break;
 
-    const type = event.type;
-    const data = event.data.object;
+        // Idempotency: Stripe may retry webhooks
+        const existing = await AgentPayment.findOne({
+          $or: [{ checkoutSessionId: session.id }, { txId: session.id }],
+        }).lean();
+        if (existing) break;
 
-    console.log(`📥 Webhook received: ${type}`);
-
-    /* -----------------------------------------------------
-     * CHECKOUT SESSION COMPLETED
-     * ----------------------------------------------------- */
-    if (type === 'checkout.session.completed') {
-      const email = normalizeEmail(
-        data.customer_details?.email ||
-        data.metadata?.email ||
-        ''
-      );
-
-      const planType = normalizeEmail(data.metadata?.planType);
-      const category = data.metadata?.category;
-
-      // REAL ESTATE — one-time payment
-      if (data.mode === 'payment' && isRealEstateCheckoutSession(data)) {
         const { validUntil, listingCount } = computeAccessFromPlan(planType);
 
-        const doc = await AgentPayment.findOneAndUpdate(
-          { txId: data.id },
+        await AgentPayment.create({
+          email,
+          type: planType,
+          category: 'real_estate',
+          validUntil,
+          listingCount,
+          confirmed: true,
+          provider: 'stripe',
+          mode: 'payment',
+          // Store Stripe refs (session.id) in both txId + checkoutSessionId
+          txId: session.id,
+          checkoutSessionId: session.id,
+          customerId: session.customer || null,
+          amountPaid: typeof session.amount_total === 'number' ? session.amount_total : null,
+          currency: session.currency ? String(session.currency).toLowerCase() : 'usd',
+          latestEventAt: eventDateFromEvent(event),
+        });
+
+        // Optional: receipt email
+        await safeSendReceiptEmail({ to: email, planType, validUntil });
+
+        break;
+      }
+
+      /* ---------------------------------
+       * SUBSCRIPTIONS (DEALERSHIP)
+       * --------------------------------- */
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object;
+
+        const email = normEmail(subscription?.metadata?.email || '');
+        const category = normStr(subscription?.metadata?.category || '');
+        const planType = normStr(subscription?.metadata?.planType || '');
+
+        // We only handle dealership subscriptions here.
+        if (category !== 'dealership' || !email) break;
+
+        const mappedType = mapDealerType(planType);
+
+        const currentPeriodStart = subscription?.current_period_start
+          ? new Date(subscription.current_period_start * 1000)
+          : null;
+
+        const currentPeriodEnd = subscription?.current_period_end
+          ? new Date(subscription.current_period_end * 1000)
+          : null;
+
+        const subscriptionStatus = subscription?.status || null;
+
+        await AgentPayment.findOneAndUpdate(
+          { subscriptionId: subscription.id },
           {
-            email,
-            txId: data.id,
-            amountPaid: data.amount_total ?? 0,
-            currency: data.currency,
-            type: planType,
-            validUntil,
-            listingCount,
-            confirmed: true,
-            provider: 'stripe',
-            mode: 'payment',
-            category: 'real_estate',
-            checkoutSessionId: data.id,
-            customerId: data.customer || null,
-            latestEventAt: new Date(),
+            $set: {
+              email,
+              category: 'dealership',
+              type: mappedType || 'dealership_monthly',
+              provider: 'stripe',
+              mode: 'subscription',
+              subscriptionId: subscription.id,
+              customerId: subscription.customer || null,
+              invoiceId: subscription.latest_invoice || null,
+              subscriptionStatus,
+              currentPeriodStart,
+              currentPeriodEnd,
+              cancelAtPeriodEnd: Boolean(subscription.cancel_at_period_end),
+              latestEventAt: eventDateFromEvent(event),
+            },
           },
-          { upsert: true, new: true }
+          { upsert: true, new: true, setDefaultsOnInsert: true }
         );
 
-        await sendConfirmationEmail(doc);
-        return res.json({ received: true });
-      }
+        // If the user already has a Dealer listing, keep it in sync.
+        // Never auto-enable acceptingApplications; only force it OFF when inactive.
+        const active = isDealerActive({ status: subscriptionStatus, currentPeriodEnd });
+        const dealerUpdate = {
+          subscriptionStatus: subscriptionStatus || 'expired',
+          subscriptionValidUntil: currentPeriodEnd || new Date(),
+        };
+        if (!active) dealerUpdate.acceptingApplications = false;
 
-      // DEALERSHIP — initial subscription
-      if (data.mode === 'subscription' && category === 'dealership') {
-        if (data.subscription) {
-          const subscription = await stripe.subscriptions.retrieve(
-            data.subscription
-          );
-          await saveDealerSubscription(subscription, email, planType);
-        }
-        return res.json({ received: true });
-      }
-
-      return res.json({ received: true });
-    }
-
-    /* -----------------------------------------------------
-     * SUBSCRIPTION CREATED / UPDATED
-     * ----------------------------------------------------- */
-    if (
-      type === 'customer.subscription.created' ||
-      type === 'customer.subscription.updated'
-    ) {
-      const subscription = data;
-
-      if (isDealershipSubscription(subscription)) {
-        const email = normalizeEmail(
-          subscription.metadata?.email ||
-          subscription.items?.data?.[0]?.price?.metadata?.email
+        await Dealer.updateMany(
+          { contactEmail: email },
+          { $set: dealerUpdate }
         );
 
-        const planType = normalizeEmail(
-          subscription.metadata?.planType ||
-          subscription.items?.data?.[0]?.price?.nickname
+        break;
+      }
+
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object;
+
+        const email = normEmail(subscription?.metadata?.email || '');
+        const category = normStr(subscription?.metadata?.category || '');
+
+        if (category !== 'dealership' || !email) break;
+
+        const now = new Date();
+
+        await AgentPayment.findOneAndUpdate(
+          { subscriptionId: subscription.id },
+          {
+            $set: {
+              email,
+              category: 'dealership',
+              provider: 'stripe',
+              mode: 'subscription',
+              subscriptionId: subscription.id,
+              customerId: subscription.customer || null,
+              invoiceId: subscription.latest_invoice || null,
+              subscriptionStatus: subscription?.status || 'canceled',
+              currentPeriodStart: null,
+              currentPeriodEnd: now,
+              cancelAtPeriodEnd: false,
+              latestEventAt: eventDateFromEvent(event),
+            },
+          },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
         );
 
-        await saveDealerSubscription(subscription, email, planType);
+        await Dealer.updateMany(
+          { contactEmail: email },
+          {
+            $set: {
+              subscriptionStatus: subscription?.status || 'canceled',
+              subscriptionValidUntil: now,
+              acceptingApplications: false,
+            },
+          }
+        );
+
+        break;
       }
 
-      return res.json({ received: true });
-    }
+      // Optional: we do not rely on invoice.paid, but it can help attach invoice ids.
+      case 'invoice.paid': {
+        const invoice = event.data.object;
+        const subscriptionId = invoice?.subscription || null;
+        if (!subscriptionId) break;
 
-    /* -----------------------------------------------------
-     * INVOICE PAID (renewal)
-     * ----------------------------------------------------- */
-    if (type === 'invoice.paid' || type === 'invoice.payment_succeeded') {
-      if (!data.subscription) return res.json({ received: true });
+        await AgentPayment.updateMany(
+          { subscriptionId },
+          {
+            $set: {
+              invoiceId: invoice.id || null,
+              latestEventAt: eventDateFromEvent(event),
+            },
+          }
+        );
 
-      const subscription = await stripe.subscriptions.retrieve(
-        data.subscription
-      );
-
-      if (!isDealershipSubscription(subscription)) {
-        return res.json({ received: true });
+        break;
       }
 
-      const email = normalizeEmail(
-        subscription.metadata?.email ||
-        subscription.items?.data?.[0]?.price?.metadata?.email
-      );
-
-      const planType = normalizeEmail(
-        subscription.metadata?.planType ||
-        subscription.items?.data?.[0]?.price?.nickname
-      );
-
-      await saveDealerSubscription(subscription, email, planType);
-
-      await AgentPayment.updateOne(
-        { subscriptionId: subscription.id },
-        {
-          invoiceId: data.id,
-          amountPaid: data.amount_paid ?? null,
-          latestEventAt: new Date(),
-        }
-      );
-
-      return res.json({ received: true });
+      default:
+        break;
     }
-
-    /* -----------------------------------------------------
-     * PAYMENT FAILED (past_due)
-     * ----------------------------------------------------- */
-    if (type === 'invoice.payment_failed') {
-      if (!data.subscription) return res.json({ received: true });
-
-      const subscription = await stripe.subscriptions.retrieve(
-        data.subscription
-      );
-
-      if (!isDealershipSubscription(subscription)) {
-        return res.json({ received: true });
-      }
-
-      const email = normalizeEmail(
-        subscription.metadata?.email ||
-        subscription.items?.data?.[0]?.price?.metadata?.email ||
-        ''
-      );
-
-
-      await AgentPayment.findOneAndUpdate(
-        { subscriptionId: subscription.id },
-        {
-          subscriptionStatus: 'past_due',
-          confirmed: false,
-          latestEventAt: new Date(),
-        }
-      );
-
-      await Dealer.updateMany(
-        { contactEmail: email },
-        {
-          subscriptionStatus: 'past_due',
-          acceptingApplications: false,
-        }
-      );
-
-      return res.json({ received: true });
-    }
-
-    /* -----------------------------------------------------
-     * SUBSCRIPTION CANCELED
-     * ----------------------------------------------------- */
-    if (type === 'customer.subscription.deleted') {
-      const subscription = data;
-
-      if (!isDealershipSubscription(subscription)) {
-        return res.json({ received: true });
-      }
-
-      const email = normalizeEmail(
-        subscription.metadata?.email ||
-          subscription.items?.data?.[0]?.price?.metadata?.email ||
-          ''
-      );
-
-      const start =
-        subscription.current_period_start &&
-        new Date(subscription.current_period_start * 1000);
-
-      const end =
-        subscription.current_period_end &&
-        new Date(subscription.current_period_end * 1000);
-
-      await AgentPayment.findOneAndUpdate(
-        { subscriptionId: subscription.id },
-        {
-          subscriptionStatus: 'canceled',
-          confirmed: false,
-          currentPeriodStart: start || null,
-          currentPeriodEnd: end || null,
-          validUntil: end || null, // keep last paid-through date
-          cancelAtPeriodEnd: subscription.cancel_at_period_end ?? null,
-          latestEventAt: new Date(),
-        }
-      );
-
-      await Dealer.updateMany(
-        { contactEmail: email },
-        {
-          subscriptionStatus: 'canceled',
-          subscriptionValidUntil: end || null,
-          acceptingApplications: false,
-        }
-      );
-
-      return res.json({ received: true });
-    }
-
-
 
     return res.json({ received: true });
+  } catch (err) {
+    console.error('❌ Stripe webhook handler error:', err);
+    // Return 500 so Stripe retries; webhook processing is idempotent.
+    return res.status(500).json({ received: false });
   }
-);
+});
 
 export default router;

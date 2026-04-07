@@ -1,0 +1,35 @@
+/* /components/ui/ui.css */
+
+/* ===== CARD ===== */
+.card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  transition: var(--transition-smooth);
+  box-shadow: var(--glow-soft);
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--glow-accent);
+}
+
+/* 🚫 REMOVE BUTTON SYSTEM CONFLICT */
+/* We are no longer using .btn, .btn-primary, etc */
+
+/* ===== INPUT ===== */
+.input {
+  width: 100%;
+  padding: 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: #0f0f0f;
+  color: white;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent);
+}

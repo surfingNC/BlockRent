@@ -35,7 +35,6 @@ UserSchema.pre('validate', function (next) {
 });
 
 // Unique indexes (source of truth)
-UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ usernameLower: 1 }, { unique: true });
 
 export default mongoose.model('User', UserSchema);

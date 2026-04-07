@@ -1,0 +1,73 @@
+.blockrent-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 28px;
+  z-index: 50;
+
+  background: linear-gradient(
+    180deg,
+    rgba(10, 10, 10, 0.95),
+    rgba(8, 8, 8, 0.92)
+  );
+
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+
+  backdrop-filter: blur(12px);
+  transition: all 0.25s ease;
+}
+
+.blockrent-header::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -50%;
+  width: 200%;
+  height: 1px;
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(247,147,26,0.8),
+    rgba(235,185,76,1),
+    transparent
+  );
+
+  animation: headerGlow 6s linear infinite;
+}
+
+@keyframes headerGlow {
+  from { transform: translateX(-30%); }
+  to { transform: translateX(30%); }
+}
+
+.blockrent-header-logo-link {
+  position: absolute;
+  left: 20px;
+}
+
+.blockrent-header-logo {
+  height: 60px;
+  transition: transform 0.25s ease;
+}
+
+.blockrent-header-logo:hover {
+  transform: scale(1.05);
+}
+
+.blockrent-header-tagline {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: rgba(255,255,255,0.9);
+}
+
+/* Scroll state */
+.blockrent-header--scrolled {
+  padding: 10px 20px;
+  background: rgba(8,8,8,0.85);
+}
+
+.blockrent-header--scrolled .blockrent-header-logo {
+  height: 42px;
+}

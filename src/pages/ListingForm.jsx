@@ -9,7 +9,7 @@ function ListingForm() {
     description: '',
     contactEmail: '',
     price: '',
-    acceptApplications: true, // ✅ New field
+    acceptApplications: true,
   });
 
   const [images, setImages] = useState([]);
@@ -28,12 +28,24 @@ function ListingForm() {
 
   const uploadImagesToS3 = async () => {
     const uploadedUrls = [];
+    const token = localStorage.getItem('token');
+
     for (let file of images) {
       const fileName = `${Date.now()}-${file.name}`;
+
       const res = await fetch(
-        `${API_URL}/api/s3/upload-url?fileName=${encodeURIComponent(fileName)}&fileType=${encodeURIComponent(file.type)}`
+        `${API_URL}/api/s3/upload-url?fileName=${encodeURIComponent(fileName)}&fileType=${encodeURIComponent(file.type)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
       );
-      const { uploadUrl } = await res.json();
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.msg || 'Failed to get upload URL');
+
+      const { uploadUrl } = data;
 
       await fetch(uploadUrl, {
         method: 'PUT',
@@ -41,9 +53,9 @@ function ListingForm() {
         body: file,
       });
 
-      const publicUrl = uploadUrl.split('?')[0];
-      uploadedUrls.push(publicUrl);
+      uploadedUrls.push(uploadUrl.split('?')[0]);
     }
+
     return uploadedUrls;
   };
 
@@ -70,6 +82,7 @@ function ListingForm() {
       if (!res.ok) throw new Error('Failed to create listing');
 
       alert('✅ Property listed successfully!');
+
       setFormData({
         streetAddress: '',
         zipCode: '',
@@ -77,11 +90,12 @@ function ListingForm() {
         description: '',
         contactEmail: '',
         price: '',
-        acceptApplications: true, // reset to default
+        acceptApplications: true,
       });
+
       setImages([]);
     } catch (err) {
-      console.error('Error submitting listing:', err);
+      console.error(err);
       alert('❌ Failed to submit listing.');
     } finally {
       setUploading(false);
@@ -89,116 +103,122 @@ function ListingForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="dashboard-page">
       <DashboardHeader username={localStorage.getItem('username') || ''} />
-      <div className="flex justify-center items-center py-10">
-        <form
-          onSubmit={handleSubmit}
-          className="w-full max-w-xl bg-white rounded-2xl shadow-lg p-8 space-y-4"
-        >
-          <h2 className="text-2xl font-semibold text-center mb-6">List Your Property</h2>
 
-          <input
-            type="text"
-            name="streetAddress"
-            placeholder="Street Address"
-            value={formData.streetAddress}
-            onChange={handleInputChange}
-            required
-            className="w-full p-3 border border-gray-300 rounded"
-          />
+      {/* BTC background */}
+      <div className="btc-particles" />
+      <div className="dashboard-grid-overlay" />
 
-          <input
-            type="text"
-            name="zipCode"
-            placeholder="Zip Code"
-            value={formData.zipCode}
-            onChange={handleInputChange}
-            required
-            className="w-full p-3 border border-gray-300 rounded"
-          />
+      <div className="dashboard-main">
+        <div className="glass-card max-w-xl mx-auto">
+          <h2 className="text-2xl font-semibold text-center mb-6">
+            List Your Property
+          </h2>
 
-          <select
-            name="state"
-            value={formData.state}
-            onChange={handleInputChange}
-            required
-            className="w-full p-3 border border-gray-300 rounded bg-white"
-          >
-            <option value="">Select State</option>
-            {[
-              'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
-              'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
-              'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
-              'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
-              'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
-            ].map((abbr) => (
-              <option key={abbr} value={abbr}>{abbr}</option>
-            ))}
-          </select>
+          <form onSubmit={handleSubmit} className="space-y-4">
 
-          <textarea
-            name="description"
-            placeholder="Brief Description"
-            value={formData.description}
-            onChange={handleInputChange}
-            required
-            rows={6}
-            className="w-full p-3 border border-gray-300 rounded resize-none"
-          ></textarea>
-
-          <input
-            type="email"
-            name="contactEmail"
-            placeholder="Contact Email"
-            value={formData.contactEmail}
-            onChange={handleInputChange}
-            required
-            className="w-full p-3 border border-gray-300 rounded"
-          />
-
-          <input
-            type="number"
-            name="price"
-            placeholder="Price per Month (USD)"
-            value={formData.price}
-            onChange={handleInputChange}
-            required
-            className="w-full p-3 border border-gray-300 rounded"
-          />
-
-          <div className="flex items-center gap-2">
             <input
-              type="checkbox"
-              name="acceptApplications"
-              checked={formData.acceptApplications}
+              type="text"
+              name="streetAddress"
+              placeholder="Street Address"
+              value={formData.streetAddress}
               onChange={handleInputChange}
-              className="h-4 w-4"
+              required
+              className="glass-input"
             />
-            <label htmlFor="acceptApplications" className="text-sm text-gray-700">
-              Accept applications via BlockRent
-            </label>
-          </div>
 
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleImageChange}
-            required
-            className="w-full p-2"
-          />
+            <input
+              type="text"
+              name="zipCode"
+              placeholder="Zip Code"
+              value={formData.zipCode}
+              onChange={handleInputChange}
+              required
+              className="glass-input"
+            />
 
-          <button
-            type="submit"
-            disabled={uploading}
-            className={`w-full p-3 rounded text-white font-semibold ${
-              uploading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {uploading ? 'Uploading...' : 'Submit Listing'}
-          </button>
-        </form>
+            <select
+              name="state"
+              value={formData.state}
+              onChange={handleInputChange}
+              required
+              className="glass-select"
+            >
+              <option value="">Select State</option>
+              {[
+                'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA',
+                'HI','ID','IL','IN','IA','KS','KY','LA','ME','MD',
+                'MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ',
+                'NM','NY','NC','ND','OH','OK','OR','PA','RI','SC',
+                'SD','TN','TX','UT','VT','VA','WA','WV','WI','WY',
+              ].map((abbr) => (
+                <option key={abbr} value={abbr}>{abbr}</option>
+              ))}
+            </select>
+
+            <textarea
+              name="description"
+              placeholder="Brief Description"
+              value={formData.description}
+              onChange={handleInputChange}
+              required
+              rows={5}
+              className="glass-textarea"
+            />
+
+            <input
+              type="email"
+              name="contactEmail"
+              placeholder="Contact Email"
+              value={formData.contactEmail}
+              onChange={handleInputChange}
+              required
+              className="glass-input"
+            />
+
+            <input
+              type="number"
+              name="price"
+              placeholder="Price per Month (USD)"
+              value={formData.price}
+              onChange={handleInputChange}
+              required
+              className="glass-input"
+            />
+
+            {/* Toggle */}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                name="acceptApplications"
+                checked={formData.acceptApplications}
+                onChange={handleInputChange}
+              />
+              <label className="text-sm text-gray-300">
+                Accept applications via BlockRent
+              </label>
+            </div>
+
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageChange}
+              required
+              className="glass-input"
+            />
+
+            <button
+              type="submit"
+              disabled={uploading}
+              className="glass-btn w-full"
+            >
+              {uploading ? 'Uploading...' : 'Submit Listing'}
+            </button>
+
+          </form>
+        </div>
       </div>
     </div>
   );

@@ -24,10 +24,7 @@ function ListYourDealership() {
     } catch {}
   }
 
-
-  /* ---------------------------------------------------------
-   * FETCH DEALERSHIP SUBSCRIPTION STATUS
-   * --------------------------------------------------------- */
+  /* ---------------- SUB STATUS ---------------- */
   useEffect(() => {
     if (!email) {
       setLoadingSubscription(false);
@@ -40,7 +37,6 @@ function ListYourDealership() {
           `/api/stripe/dealer-status?email=${encodeURIComponent(email)}`
         );
         const data = await res.json();
-
         if (res.ok) setSubStatus(data);
       } catch (err) {
         console.error("❌ Failed to fetch subscription:", err);
@@ -52,19 +48,13 @@ function ListYourDealership() {
     fetchSub();
   }, [email]);
 
-  // Backend already determines if dealer subscription is active
   const subscriptionActive = subStatus?.status === "active";
 
-  /* ---------------------------------------------------------
-   * Handle image selection
-   * --------------------------------------------------------- */
+  /* ---------------- IMAGES ---------------- */
   const handleImageChange = (e) => {
     setImages(Array.from(e.target.files));
   };
 
-  /* ---------------------------------------------------------
-   * Upload images to S3
-   * --------------------------------------------------------- */
   const uploadImagesToS3 = async () => {
     const uploadedUrls = [];
 
@@ -76,7 +66,6 @@ function ListYourDealership() {
         const res = await fetch(
           `/api/s3/upload-url?fileName=${fileName}&fileType=${fileType}`
         );
-
         if (!res.ok) continue;
 
         const { uploadUrl } = await res.json();
@@ -98,9 +87,7 @@ function ListYourDealership() {
     return uploadedUrls;
   };
 
-  /* ---------------------------------------------------------
-   * Submit Dealership
-   * --------------------------------------------------------- */
+  /* ---------------- SUBMIT ---------------- */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -151,118 +138,142 @@ function ListYourDealership() {
     }
   };
 
-  /* ---------------------------------------------------------
-   * Display: Loading subscription
-   * --------------------------------------------------------- */
+  /* ---------------- LOADING ---------------- */
   if (loadingSubscription) {
     return (
-      <div>
+      <div className="dashboard-page">
         <Header />
-        <p className="text-center mt-10">Checking subscription...</p>
+        <div className="dashboard-main text-center mt-20">
+          <p>Checking subscription...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="list-dealership-page">
+    <div className="dashboard-page">
       <Header />
 
-      <div className="max-w-2xl mx-auto mt-10 p-6 bg-white rounded-xl shadow-md">
-        <h1 className="text-2xl font-semibold mb-4 text-center">
-          List Your Dealership
-        </h1>
+      {/* BTC PARTICLES + GRID (reuse global styles) */}
+      <div className="btc-particles"></div>
+      <div className="dashboard-grid-overlay"></div>
 
-        {/* SUBSCRIPTION INACTIVE WARNING */}
-        {!subscriptionActive && (
-          <div className="bg-red-100 border border-red-400 text-red-700 p-4 rounded mb-6 text-center">
-            <p className="font-bold">❗ Dealership Subscription Required</p>
-            <p className="mt-2">
-              You must activate a subscription before you can list a dealership.
-            </p>
-            <button
-              onClick={() =>
-                (window.location.href = "/subscribe?for=dealership")
-              }
-              className="mt-3 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
-            >
-              Activate Subscription
-            </button>
-          </div>
-        )}
+      <div className="dashboard-main">
+        <div className="glass-card max-w-2xl mx-auto p-8">
 
-        {/* DEALERSHIP FORM */}
-        {subscriptionActive && (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <label>Dealership Name</label>
-            <input
-              type="text"
-              value={dealershipName}
-              onChange={(e) => setDealershipName(e.target.value)}
-              required
-              className="border rounded px-3 py-2"
-            />
+          <h1 className="text-3xl font-semibold text-center mb-6">
+            List Your Dealership
+          </h1>
 
-            <label>Address</label>
-            <input
-              type="text"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              required
-              className="border rounded px-3 py-2"
-            />
+          {/* ❌ SUB REQUIRED */}
+          {!subscriptionActive && (
+            <div className="glass-card p-5 mb-6 text-center border border-red-500/30">
+              <p className="text-red-400 font-semibold text-lg">
+                Dealership Subscription Required
+              </p>
 
-            <label>ZIP Code</label>
-            <input
-              type="text"
-              value={zipCode}
-              onChange={(e) => setZipCode(e.target.value)}
-              required
-              placeholder="e.g. 27609"
-              className="border rounded px-3 py-2"
-            />
+              <p className="mt-2 text-sm opacity-80">
+                Activate a subscription to list your dealership.
+              </p>
 
-            <label>Contact Email (optional)</label>
-            <input
-              type="email"
-              value={contactEmail}
-              onChange={(e) => setContactEmail(e.target.value)}
-              placeholder={`Defaults to ${email}`}
-              className="border rounded px-3 py-2"
-            />
+              <button
+                onClick={() =>
+                  (window.location.href = "/subscribe?for=dealership")
+                }
+                className="glass-btn mt-4"
+              >
+                Activate Subscription
+              </button>
+            </div>
+          )}
 
-            <label>Upload Dealership Images</label>
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={handleImageChange}
-              className="border rounded px-3 py-2"
-            />
+          {/* ✅ FORM */}
+          {subscriptionActive && (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-5">
 
-            {images.length > 0 && (
-              <div className="flex gap-2 mt-2 flex-wrap">
-                {images.map((file, idx) => (
-                  <img
-                    key={idx}
-                    src={URL.createObjectURL(file)}
-                    alt="preview"
-                    className="w-24 h-24 object-cover rounded-md border"
-                  />
-                ))}
+              <div>
+                <label className="form-label">Dealership Name</label>
+                <input
+                  type="text"
+                  value={dealershipName}
+                  onChange={(e) => setDealershipName(e.target.value)}
+                  required
+                  className="form-input"
+                />
               </div>
-            )}
 
-            <button
-              type="submit"
-              disabled={uploading}
-              className="bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600"
-            >
-              {uploading ? "Submitting..." : "Submit Dealership"}
-            </button>
+              <div>
+                <label className="form-label">Address</label>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  required
+                  className="form-input"
+                />
+              </div>
 
-            {status && <p className="text-center mt-2">{status}</p>}
-          </form>
-        )}
+              <div>
+                <label className="form-label">ZIP Code</label>
+                <input
+                  type="text"
+                  value={zipCode}
+                  onChange={(e) => setZipCode(e.target.value)}
+                  required
+                  placeholder="e.g. 27609"
+                  className="form-input"
+                />
+              </div>
+
+              <div>
+                <label className="form-label">Contact Email (optional)</label>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  placeholder={`Defaults to ${email}`}
+                  className="form-input"
+                />
+              </div>
+
+              <div>
+                <label className="form-label">Upload Images</label>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="form-input file-input"
+                />
+              </div>
+
+              {images.length > 0 && (
+                <div className="flex gap-3 flex-wrap mt-2">
+                  {images.map((file, idx) => (
+                    <img
+                      key={idx}
+                      src={URL.createObjectURL(file)}
+                      alt="preview"
+                      className="w-24 h-24 object-cover rounded-xl border border-white/10"
+                    />
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={uploading}
+                className="glass-btn mt-4"
+              >
+                {uploading ? "Submitting..." : "Submit Dealership"}
+              </button>
+
+              {status && (
+                <p className="text-center mt-2 opacity-80">{status}</p>
+              )}
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

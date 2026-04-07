@@ -1,7 +1,7 @@
-// src/pages/CarListings.jsx
 import React, { useState } from 'react';
 import DashboardHeader from '../components/DashboardHeader';
 import ApplyModal from '../components/ApplyModal';
+import Lightbox from '../components/Lightbox';
 
 function CarListings() {
   const [dealers, setDealers] = useState([]);
@@ -14,7 +14,6 @@ function CarListings() {
 
   const API_URL = '/api/dealers';
 
-  // 🔍 Search dealerships by ZIP + radius
   const handleSearch = async () => {
     if (!zipInput.match(/^\d{5}$/)) {
       alert('Please enter a valid 5-digit ZIP code.');
@@ -51,32 +50,30 @@ function CarListings() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f9fafb' }}>
+    <div className="dashboard-page">
+      <div className="dashboard-grid-overlay" />
+
       <DashboardHeader username={localStorage.getItem('username') || ''} />
 
-      <div style={{ padding: '2rem' }}>
-        <h2 style={{ textAlign: 'center', fontSize: '1.75rem', fontWeight: 'bold' }}>
+      <div className="dashboard-container">
+        <h2 className="section-title" style={{ textAlign: 'center' }}>
           Dealership Listings
         </h2>
 
-        {/* 🔍 Search Controls */}
-        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+        {/* SEARCH */}
+        <div className="glass-card filter-bar" style={{ justifyContent: 'center' }}>
           <input
             type="text"
             value={zipInput}
             onChange={(e) => setZipInput(e.target.value)}
             placeholder="ZIP (e.g. 27609)"
-            style={{
-              padding: '0.5rem',
-              marginRight: '0.5rem',
-              width: '100px',
-              textAlign: 'center',
-            }}
+            className="glass-input"
           />
+
           <select
             value={radius}
             onChange={(e) => setRadius(e.target.value)}
-            style={{ padding: '0.5rem', marginRight: '0.5rem' }}
+            className="glass-select"
           >
             {[10, 25, 50, 100, 200].map((r) => (
               <option key={r} value={r}>
@@ -84,39 +81,36 @@ function CarListings() {
               </option>
             ))}
           </select>
-          <button onClick={handleSearch} disabled={loading} style={{ padding: '0.5rem 1rem' }}>
+
+          <button onClick={handleSearch} disabled={loading} className="glass-btn">
             {loading ? 'Searching...' : 'Search'}
           </button>
-          <button
-            onClick={handleReset}
-            style={{
-              marginLeft: '0.75rem',
-              background: 'none',
-              border: 'none',
-              color: '#555',
-              textDecoration: 'underline',
-              cursor: 'pointer',
-            }}
-          >
+
+          <button onClick={handleReset} className="glass-btn">
             Reset
           </button>
         </div>
 
-        {status && <p style={{ textAlign: 'center', marginTop: '1rem' }}>{status}</p>}
+        {status && (
+          <p className="empty-text" style={{ textAlign: 'center', marginTop: '1rem' }}>
+            {status}
+          </p>
+        )}
 
-        {/* 🚗 Dealership Results */}
-        {zipInput === '' ? (
-          <p style={{ textAlign: 'center', color: '#888', marginTop: '2rem' }}>
-            Please enter a ZIP code and click "Search" to view dealerships nearby.
-          </p>
-        ) : dealers.length === 0 ? (
-          <p style={{ textAlign: 'center', color: '#888', marginTop: '2rem' }}>
-            No dealerships found within {radius} miles of ZIP {zipInput}.
-          </p>
-        ) : (
-          dealers.map((dealer, index) => (
-            <div key={dealer._id}>
+        {/* RESULTS */}
+        <div className="listings-grid">
+          {zipInput === '' ? (
+            <p className="empty-text">
+              Enter a ZIP code to view dealerships.
+            </p>
+          ) : dealers.length === 0 ? (
+            <p className="empty-text">
+              No dealerships found within {radius} miles.
+            </p>
+          ) : (
+            dealers.map((dealer) => (
               <DealerCard
+                key={dealer._id}
                 dealer={dealer}
                 zipRef={zipInput}
                 setLightbox={setLightbox}
@@ -126,21 +120,18 @@ function CarListings() {
                   }
                 }}
               />
-              {index < dealers.length - 1 && <hr style={{ margin: '2rem 0' }} />}
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
 
-        {/* 🖼 Lightbox */}
         {lightbox.open && (
           <Lightbox
             images={lightbox.images}
             index={lightbox.index}
-            setLightbox={setLightbox}
+            onClose={() => setLightbox({ open: false, images: [], index: 0 })}
           />
         )}
 
-        {/* 💬 Application Modal */}
         {applyModal.open && (
           <ApplyModal
             dealer={applyModal.dealer}
@@ -154,7 +145,6 @@ function CarListings() {
 
 function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
   const [currentImage, setCurrentImage] = useState(0);
-
   const inactive = dealer.acceptingApplications === false;
 
   const imageList =
@@ -167,114 +157,39 @@ function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
 
   const nextImage = () =>
     !inactive &&
-    setCurrentImage((prev) => (prev + 1) % (imageList?.length || 1));
+    setCurrentImage((prev) => (prev + 1) % imageList.length);
 
   const prevImage = () =>
     !inactive &&
-    setCurrentImage(
-      (prev) => (prev - 1 + (imageList?.length || 1)) % (imageList?.length || 1)
-    );
+    setCurrentImage((prev) => (prev - 1 + imageList.length) % imageList.length);
 
   return (
-    <div
-      style={{
-        border: '1px solid #ddd',
-        borderRadius: '8px',
-        padding: '1rem',
-        background: '#fff',
-        opacity: inactive ? 0.6 : 1,
-        position: 'relative',
-      }}
-    >
-      {/* ⛔ Inactive Ribbon */}
+    <div className="glass-card listing-card" style={{ opacity: inactive ? 0.6 : 1 }}>
       {inactive && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: -30,
-            backgroundColor: '#dc2626',
-            color: 'white',
-            padding: '4px 38px',
-            transform: 'rotate(-45deg)',
-            fontSize: '0.75rem',
-            fontWeight: '600',
-          }}
-        >
-          Not Accepting
-        </div>
+        <div className="badge inactive">Not Accepting</div>
       )}
 
       {hasImages && (
-        <div
-          style={{
-            position: 'relative',
-            width: '100%',
-            height: '250px',
-            overflow: 'hidden',
-            marginBottom: '0.75rem',
-          }}
-        >
+        <div className="listing-image-container">
           <img
             src={imageList[currentImage]}
             alt={dealer.dealershipName}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              borderRadius: '8px',
-              cursor: inactive ? 'default' : 'pointer',
-            }}
+            className="listing-image"
             onClick={() =>
               !inactive &&
               setLightbox({ open: true, images: imageList, index: currentImage })
             }
           />
 
-          {/* Image Navigation */}
           {imageList.length > 1 && !inactive && (
             <>
-              <button
-                onClick={prevImage}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '5px',
-                  transform: 'translateY(-50%)',
-                  background: 'rgba(0,0,0,0.5)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '30px',
-                  height: '30px',
-                  cursor: 'pointer',
-                }}
-              >
-                &lt;
-              </button>
-              <button
-                onClick={nextImage}
-                style={{
-                  position: 'absolute',
-                  top: '50%',
-                  right: '5px',
-                  transform: 'translateY(-50%)',
-                  background: 'rgba(0,0,0,0.5)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: '30px',
-                  height: '30px',
-                  cursor: 'pointer',
-                }}
-              >
-                &gt;
-              </button>
+              <button onClick={prevImage} className="image-nav left">‹</button>
+              <button onClick={nextImage} className="image-nav right">›</button>
             </>
           )}
 
-          <div style={{ textAlign: 'center', marginTop: '5px' }}>
-            {currentImage + 1}/{imageList.length} photos
+          <div className="image-counter">
+            {currentImage + 1}/{imageList.length}
           </div>
         </div>
       )}
@@ -283,25 +198,16 @@ function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
       <p>{dealer.address}</p>
       <p>ZIP: {dealer.zipCode}</p>
 
-      <p style={{ color: '#555' }}>
-        Subscription: <span style={{ fontWeight: 600 }}>active</span>
+      <p className="distance-text">
+        Subscription: <strong>active</strong>
       </p>
-
 
       <p>Email: {dealer.contactEmail}</p>
 
       <button
         onClick={openApply}
         disabled={inactive}
-        style={{
-          marginTop: '10px',
-          background: inactive ? '#9ca3af' : '#f59e0b',
-          color: 'white',
-          padding: '0.5rem 1rem',
-          border: 'none',
-          borderRadius: '5px',
-          cursor: inactive ? 'not-allowed' : 'pointer',
-        }}
+        className="glass-btn"
       >
         {inactive ? 'Applications Closed' : 'Apply for Lease'}
       </button>
@@ -309,76 +215,5 @@ function DealerCard({ dealer, zipRef, setLightbox, openApply }) {
   );
 }
 
-function Lightbox({ images, index, setLightbox }) {
-  const [current, setCurrent] = useState(index);
-  const next = () => setCurrent((prev) => (prev + 1) % images.length);
-  const prev = () => setCurrent((prev) => (prev - 1 + images.length) % images.length);
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000,
-      }}
-    >
-      <button
-        onClick={() => setLightbox({ open: false, images: [], index: 0 })}
-        style={{
-          position: 'absolute',
-          top: '10px',
-          right: '10px',
-          fontSize: '24px',
-          color: 'white',
-          background: 'none',
-          border: 'none',
-        }}
-      >
-        ×
-      </button>
-
-      <button
-        onClick={prev}
-        style={{
-          position: 'absolute',
-          left: '20px',
-          color: 'white',
-          fontSize: '24px',
-          background: 'none',
-          border: 'none',
-        }}
-      >
-        &lt;
-      </button>
-
-      <img
-        src={images[current]}
-        alt="Dealer"
-        style={{ maxWidth: '90%', maxHeight: '90%' }}
-      />
-
-      <button
-        onClick={next}
-        style={{
-          position: 'absolute',
-          right: '20px',
-          color: 'white',
-          fontSize: '24px',
-          background: 'none',
-          border: 'none',
-        }}
-      >
-        &gt;
-      </button>
-    </div>
-  );
-}
 
 export default CarListings;

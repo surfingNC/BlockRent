@@ -3,10 +3,22 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import Verification from '../models/Verification.js';
-import { sendVerificationEmail } from '../utils/sendEmail.js';
+import { sendMail } from '../utils/mailer.js';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecretjwtkey';
+
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    // This should never happen because server.js fail-fast checks required env vars.
+    // Keep it explicit so logs are clear if something misconfigures production.
+    console.error('❌ JWT_SECRET is not set at request time');
+    return null;
+  }
+  return secret;
+}
+
+
 
 function generateVerificationCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -15,6 +27,22 @@ function generateVerificationCode() {
 const normEmail = (v) => String(v || '').trim().toLowerCase();
 const normUsername = (v) => String(v || '').trim();
 const toLower = (v) => String(v || '').trim().toLowerCase();
+
+async function sendVerificationEmail(to, code) {
+  const subject = 'BlockLease Email Verification Code';
+  const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.4;">
+      <h2 style="margin: 0 0 12px 0;">Verify your email</h2>
+      <p style="margin: 0 0 12px 0;">Your verification code is:</p>
+      <p style="font-size: 24px; font-weight: bold; letter-spacing: 2px; margin: 0 0 12px 0;">${code}</p>
+      <p style="margin: 0; color: #555;">This code expires in 10 minutes.</p>
+    </div>
+  `.trim();
+
+  const text = `Your BlockLease verification code is: ${code} (expires in 10 minutes)`;
+
+  return sendMail({ to, subject, html, text });
+}
 
 /**
  * POST /api/auth/register
@@ -26,67 +54,64 @@ router.post('/register', async (req, res) => {
   const password = String(req.body.password || '');
 
   if (!email || !username || !password) {
-    return res.status(400).json({ msg: 'Username, email, and password are required' });
-  }
-  if (password.length < 8) {
-    return res.status(400).json({ msg: 'Password must be at least 8 characters' });
+    return res.status(400).json({ msg: 'Email, username, and password are required' });
   }
 
-  const usernameLower = toLower(username);
+  if (password.length < 6) {
+    return res.status(400).json({ msg: 'Password must be at least 6 characters' });
+  }
+
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return res.status(400).json({ msg: 'Invalid email format' });
+  }
 
   try {
-    /**
-     * Defensive duplicate checks:
-     * - primary: email + usernameLower
-     * - legacy: username (case-insensitive) for old docs missing usernameLower
-     */
-    const [userHit, pendingHit] = await Promise.all([
-      User.findOne({
-        $or: [{ email }, { usernameLower }, { username }],
-      }).collation({ locale: 'en', strength: 2 }), // makes { username } case-insensitive
+    const existingUser = await User.findOne({
+      $or: [{ email }, { usernameLower: toLower(username) }],
+    });
 
-      Verification.findOne({
-        $or: [{ email }, { usernameLower }, { username }],
-      }).collation({ locale: 'en', strength: 2 }),
-    ]);
-
-    if (userHit || pendingHit) {
-      return res.status(409).json({ msg: 'Username or email already in use' });
+    if (existingUser) {
+      return res.status(409).json({ msg: 'Email or username already registered' });
     }
-
-    const passwordHash = await bcrypt.hash(password, 10);
 
     const code = generateVerificationCode();
     const codeHash = await bcrypt.hash(code, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    // Create pending verification ONLY AFTER we know username/email are free
-    await Verification.create({
-      email,
-      username,
-      usernameLower,
-      passwordHash,
-      codeHash,
-      expiresAt,
-      attempts: 0,
-      resendCount: 0,
-      lastSentAt: new Date(),
+    await Verification.findOneAndUpdate(
+      { email },
+      {
+        email,
+        username,
+        usernameLower: toLower(username),
+        passwordHash,
+        codeHash,
+        expiresAt,
+        attempts: 0,
+        lastSentAt: new Date(),
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    const mailResult = await sendVerificationEmail(email, code);
+
+    // Dev convenience: if no email provider is configured, return the code only in non-production.
+    const debugCode =
+      process.env.NODE_ENV !== 'production' && mailResult?.skipped ? { code } : {};
+
+    return res.status(200).json({
+      msg: 'Verification code sent to email',
+      ...debugCode,
     });
-
-    // Send code last (so we never email if DB says it's not valid)
-    await sendVerificationEmail(email, code);
-
-    return res.status(201).json({ msg: 'Verification code sent to your email' });
   } catch (err) {
+    console.error('❌ Register error:', err);
     if (err?.code === 11000) {
-      const field = Object.keys(err.keyValue || {})[0] || 'value';
-      return res.status(409).json({ msg: `${field} already in use` });
+      return res.status(409).json({ msg: 'Email or username already registered' });
     }
-    console.error('❌ Registration error:', err);
     return res.status(500).json({ msg: 'Server error during registration' });
   }
 });
-
 
 /**
  * POST /api/auth/verify-email
@@ -113,20 +138,21 @@ router.post('/verify-email', async (req, res) => {
 
     if (record.expiresAt.getTime() < Date.now()) {
       await Verification.deleteOne({ email });
+      return res.status(400).json({ msg: 'Verification code expired. Please register again.' });
+    }
+
+    if ((record.attempts || 0) >= 5) {
+      await Verification.deleteOne({ email });
+      return res.status(429).json({ msg: 'Too many attempts. Please register again.' });
+    }
+
+    const codeOk = await bcrypt.compare(code, record.codeHash);
+    if (!codeOk) {
+      record.attempts = (record.attempts || 0) + 1;
+      await record.save();
       return res.status(400).json({ msg: 'Invalid or expired verification code' });
     }
 
-    if ((record.attempts || 0) >= 6) {
-      return res.status(429).json({ msg: 'Too many attempts. Please request a new code.' });
-    }
-
-    const ok = await bcrypt.compare(code, record.codeHash);
-    if (!ok) {
-      await Verification.updateOne({ email }, { $inc: { attempts: 1 } });
-      return res.status(400).json({ msg: 'Invalid or expired verification code' });
-    }
-
-    // Indexes are source of truth; this is a friendly error message
     const existingUser = await User.findOne({
       $or: [{ email }, { usernameLower: record.usernameLower }],
     });
@@ -155,16 +181,30 @@ router.post('/verify-email', async (req, res) => {
 
     await Verification.deleteOne({ email });
 
-    return res.status(200).json({ msg: 'Email verified and user registered successfully' });
+    const secret = getJwtSecret();
+    if (!secret) return res.status(500).json({ msg: 'Server misconfiguration' });
+
+    const token = jwt.sign(
+      { id: newUser._id, username: newUser.username, email: newUser.email },
+      secret,
+      { expiresIn: '1h' }
+    );
+
+    return res.status(201).json({
+      msg: 'Email verified successfully',
+      token,
+      username: newUser.username,
+      email: newUser.email,
+    });
   } catch (err) {
-    console.error('❌ Verification error:', err);
+    console.error('❌ Verify error:', err);
     return res.status(500).json({ msg: 'Server error during verification' });
   }
 });
 
 /**
  * POST /api/auth/login
- * body: { identifier, password }
+ * body: { identifier, password } where identifier = email OR username
  */
 router.post('/login', async (req, res) => {
   const identifierRaw = String(req.body.identifier || '').trim();
@@ -179,25 +219,19 @@ router.post('/login', async (req, res) => {
     const email = normEmail(identifierRaw);
     const usernameLower = toLower(identifierRaw);
 
-    // IMPORTANT: password is select:false, so we must select it
     const user = await User.findOne(isEmail ? { email } : { usernameLower }).select('+password');
 
-    if (!user) {
-      return res.status(400).json({ msg: 'Invalid username/email or password' });
-    }
+    if (!user) return res.status(401).json({ msg: 'Invalid credentials' });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ msg: 'Invalid username/email or password' });
-    }
+    if (!isMatch) return res.status(401).json({ msg: 'Invalid credentials' });
 
-    if (!user.isVerified) {
-      return res.status(403).json({ msg: 'Email not verified. Please check your inbox.' });
-    }
+    const secret = getJwtSecret();
+    if (!secret) return res.status(500).json({ msg: 'Server misconfiguration' });
 
     const token = jwt.sign(
       { id: user._id, username: user.username, email: user.email },
-      JWT_SECRET,
+      secret,
       { expiresIn: '1h' }
     );
 
@@ -210,18 +244,6 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('❌ Login error:', err);
     return res.status(500).json({ msg: 'Server error during login' });
-  }
-});
-
-// DEV ONLY
-router.post('/reset', async (_req, res) => {
-  try {
-    await User.deleteMany({});
-    await Verification.deleteMany({});
-    return res.status(200).json({ msg: 'Database reset successful' });
-  } catch (err) {
-    console.error('❌ Reset error:', err);
-    return res.status(500).json({ msg: 'Error resetting database' });
   }
 });
 

@@ -1,0 +1,38 @@
+/* /styles/theme.css */
+:root {
+  /* ===== COLORS ===== */
+  --color-bg-primary: #070707;
+  --color-bg-secondary: #0b0908;
+  --color-bg-card: #111111;
+
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgba(255,255,255,0.65);
+  --color-text-muted: rgba(255,255,255,0.4);
+
+  --color-border: rgba(255,255,255,0.08);
+
+  /* Bitcoin Accent */
+  --color-accent: #f7931a;
+  --color-accent-soft: rgba(247,147,26,0.15);
+  --color-accent-glow: rgba(247,147,26,0.35);
+
+  /* ===== SPACING ===== */
+  --space-xs: 0.5rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+
+  /* ===== RADIUS ===== */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  /* ===== SHADOW / GLOW ===== */
+  --glow-accent: 0 0 20px rgba(247,147,26,0.25);
+  --glow-soft: 0 0 12px rgba(255,255,255,0.05);
+
+  /* ===== TRANSITIONS ===== */
+  --transition-fast: 0.2s ease;
+  --transition-smooth: 0.35s ease;
+}

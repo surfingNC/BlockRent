@@ -13,6 +13,7 @@ import ListYourDealership from './pages/ListYourDealership.jsx';
 import DealerDashboard from './pages/DealerDashboard.jsx';   
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import './styles/index.css';
+import './styles/Dashboard.css';
 
 function App() {
   return (

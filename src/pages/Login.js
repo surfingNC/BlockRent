@@ -5,7 +5,7 @@ import Header from '../components/Header.js';
 function Login() {
   const tutorialUrl = 'https://www.youtube.com/watch?v=aXkDFB2oFdE';
 
-  const [identifier, setIdentifier] = useState(''); // <-- renamed from username
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [btcPrice, setBtcPrice] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -16,6 +16,24 @@ function Login() {
   const [activationMsg, setActivationMsg] = useState('');
 
   const navigate = useNavigate();
+  // 🔒 AUTH GUARD — DO NOT REMOVE
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      const now = Math.floor(Date.now() / 1000);
+
+      if (decoded.exp && decoded.exp > now) {
+        navigate('/dashboard', { replace: true });
+      } else {
+        localStorage.clear();
+      }
+    } catch {
+      localStorage.clear();
+    }
+  }, [navigate]);
 
   // --- Stripe: confirm REAL ESTATE Checkout Session ---
   useEffect(() => {
@@ -62,7 +80,6 @@ function Login() {
     })();
   }, []);
 
-
   // --- Fetch BTC price ---
   useEffect(() => {
     const fetchBitcoinPrice = async () => {
@@ -94,7 +111,7 @@ function Login() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          identifier: identifier.trim(), // 👈 can be username or email
+          identifier: identifier.trim(),
           password,
         }),
       });
@@ -125,75 +142,100 @@ function Login() {
   };
 
   return (
-    <div
-      style={{
-        backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-        backgroundAttachment: 'fixed',
-        minHeight: '100vh',
-        width: '100%',
-      }}
-    >
-      <Header />
+    <div className="login-page">
+      
+      <div className="btc-particles">
+        {[...Array(8)].map((_, i) => (
+          <span key={i} className="btc-particle">₿</span>
+        ))}
+      </div>
 
+      {/* Optional existing background image overlay preserved but subdued */}
       <div
+        className="login-bg-image"
         style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: 'calc(100vh - 72px)',
+          backgroundImage: `url(${process.env.PUBLIC_URL + '/backgroundFiller.PNG'})`,
         }}
-      >
-        <div className="app-container">
-          <div className="login-box">
-            <h2 style={{ textAlign: 'center' }}>Login</h2>
+      />
+
+      {/* Animated glow layers (UniSat-inspired) */}
+      <div className="login-glow login-glow-1" />
+      <div className="login-glow login-glow-2" />
+      <div className="login-grid-overlay" />
+
+      <Header showTagline={true} />
+
+      <div className="login-main">
+        <div className="login-shell">
+          {/* LEFT SIDE BRAND PANEL */}
+          <div className="login-brand-panel">
+            <div className="brand-badge">Bitcoin-Backed Real Estate</div>
+
+            <h1 className="brand-title">
+              Secure property access,
+              <span> powered by Bitcoin.</span>
+            </h1>
+
+            <p className="brand-subtitle">
+              BlockRent blends modern property access with Bitcoin-native identity,
+              wallet verification, and subscription infrastructure.
+            </p>
+
+            <div className="brand-feature-list">
+              <div className="brand-feature-card">
+                <span className="brand-feature-icon">₿</span>
+                <div>
+                  <h4>Live BTC Pricing</h4>
+                  <p>Real-time Bitcoin market pricing for lease intelligence.</p>
+                </div>
+              </div>
+
+              <div className="brand-feature-card">
+                <span className="brand-feature-icon">🔐</span>
+                <div>
+                  <h4>Secure Auth</h4>
+                  <p>JWT login, email verification, and wallet-linked identity.</p>
+                </div>
+              </div>
+
+              <div className="brand-feature-card">
+                <span className="brand-feature-icon">🏠</span>
+                <div>
+                  <h4>Property Workflow</h4>
+                  <p>Built for listings, tenant applications, and Bitcoin-native access.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT SIDE LOGIN CARD */}
+          <div className="login-card">
+            <div className="login-card-header">
+              <div className="login-chip">BlockRent Access</div>
+              <h2>Welcome back</h2>
+              <p>Sign in with your email or username to access your dashboard.</p>
+            </div>
 
             {/* Stripe activation banner */}
             {(activating || activationMsg) && (
-              <div
-                style={{
-                  marginBottom: '12px',
-                  padding: '10px',
-                  borderRadius: '8px',
-                  background: '#eef6ff',
-                  color: '#1e3a8a',
-                  fontWeight: 500,
-                  textAlign: 'center',
-                }}
-              >
+              <div className="activation-banner">
                 {activationMsg || 'Activating your subscription…'}
               </div>
             )}
 
             {/* BTC Price */}
             {btcPrice !== null && (
-              <div
-                style={{
-                  marginBottom: '16px',
-                  padding: '12px',
-                  borderRadius: '10px',
-                  backgroundColor: '#f3f4f6',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                  textAlign: 'center',
-                  fontWeight: '500',
-                  color: '#1f2937',
-                  fontSize: '1rem',
-                }}
-              >
-                🪙 Current Bitcoin Price:{' '}
-                <span style={{ fontWeight: 'bold' }}>
-                  ${btcPrice.toLocaleString()}
-                </span>
+              <div className="btc-card">
+                <div className="btc-label">🪙 Current Bitcoin Price</div>
+                <div className="btc-price">${btcPrice.toLocaleString()}</div>
               </div>
             )}
 
             {/* Login Form */}
-            <form onSubmit={handleSubmit}>
-              {errorMsg && <p style={{ color: 'red' }}>{errorMsg}</p>}
+            <form onSubmit={handleSubmit} className="login-form">
+              {errorMsg && <p className="error-message">{errorMsg}</p>}
 
-              <div className="input-group">
+              <div className="input-group modern-input-group">
                 <label htmlFor="identifier">Email or Username</label>
                 <input
                   type="text"
@@ -201,10 +243,11 @@ function Login() {
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   required
+                  placeholder="Enter email or username"
                 />
               </div>
 
-              <div className="input-group">
+              <div className="input-group modern-input-group">
                 <label htmlFor="password">Password</label>
                 <input
                   type="password"
@@ -212,95 +255,48 @@ function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  placeholder="Enter password"
                 />
               </div>
 
-              <button type="submit" disabled={loading}>
+              <button type="submit" disabled={loading} className="login-btn">
                 {loading ? 'Logging in...' : 'Login'}
               </button>
             </form>
 
-            <p>
-              Don't have an account? <Link to="/register">Sign Up</Link>
+            <p className="login-footer-text">
+              Don&apos;t have an account? <Link to="/register">Sign Up</Link>
             </p>
+
+            {/* Powered by UniSat */}
+            <div className="unisat-section">
+              <a
+                href="https://unisat.io/download"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="unisat-btn"
+              >
+                <img
+                  src={process.env.PUBLIC_URL + '/unisatlogo.jpg'}
+                  alt="UniSat Logo"
+                  className="unisat-logo"
+                />
+                <span>Powered by UniSat</span>
+              </a>
+            </div>
+
+            {/* Tutorial link */}
+            <div className="tutorial-section">
+              <a
+                href={tutorialUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="tutorial-link"
+              >
+                Watch the quick tutorial (YouTube)
+              </a>
+            </div>
           </div>
-
-          {/* === Powered by UniSat section (centered below box) === */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              flexDirection: 'column',
-              marginTop: '2rem',
-              textAlign: 'center',
-            }}
-          >
-            <a
-              href="https://unisat.io/download"
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                backgroundColor: '#f7931a',
-                color: '#fff',
-                textDecoration: 'none',
-                fontWeight: '600',
-                padding: '8px 16px',
-                borderRadius: '6px',
-                transition: 'background-color 0.3s ease',
-                fontSize: '0.95rem',
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.backgroundColor = '#d67b00')
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.backgroundColor = '#f7931a')
-              }
-            >
-              <img
-                src={process.env.PUBLIC_URL + '/unisatlogo.jpg'}
-                alt="UniSat Logo"
-                style={{ height: '22px', width: 'auto' }}
-              />
-              <span>Powered by UniSat</span>
-            </a>
-          </div>
-
-          {/* === Tutorial link (beneath UniSat button) === */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              marginTop: '14px',
-              textAlign: 'center',
-            }}
-          >
-            <a
-              href={tutorialUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                fontSize: '1.1rem',          // bigger
-                fontWeight: 700,             // bold
-                color: '#1d4ed8',            // traditional-ish blue (tailwind "blue-700")
-                textDecoration: 'underline',
-                textUnderlineOffset: '3px',
-                backgroundColor: 'rgba(255,255,255,0.92)', // makes it readable on any background
-                padding: '6px 10px',
-                borderRadius: '8px',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.18)',
-                lineHeight: 1.2,
-              }}
-            >
-              Watch the quick tutorial (YouTube)
-            </a>
-          </div>
-
-
-
         </div>
       </div>
     </div>

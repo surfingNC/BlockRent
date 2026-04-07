@@ -70,181 +70,87 @@ function ApplyModal({ dealer, onClose }) {
     }
   };
 
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 2000,
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: 'white',
-          borderRadius: '10px',
-          padding: '2rem',
-          width: '90%',
-          maxWidth: '420px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-          position: 'relative',
-          animation: 'fadeIn 0.3s ease',
-        }}
+return (
+  <div className="modal-overlay">
+    <form onSubmit={handleSubmit} className="glass-card modal-card">
+
+      {/* CLOSE */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="modal-close"
       >
-        {/* Close Button */}
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '10px',
-            right: '10px',
-            background: 'none',
-            border: 'none',
-            fontSize: '20px',
-            cursor: 'pointer',
-            color: '#444',
-          }}
-        >
-          ✖
-        </button>
+        ×
+      </button>
 
-        <h2
-          style={{
-            fontSize: '1.25rem',
-            fontWeight: '600',
-            textAlign: 'center',
-            marginBottom: '1rem',
-          }}
-        >
-          Apply to {dealer.dealershipName}
-        </h2>
+      <h2 className="modal-title">
+        Apply to {dealer.dealershipName}
+      </h2>
 
-        {/* ❌ Dealer not accepting applications */}
-        {isBlocked && (
-          <div
-            style={{
-              backgroundColor: '#fee2e2',
-              border: '1px solid #fca5a5',
-              color: '#b91c1c',
-              padding: '0.75rem',
-              borderRadius: '8px',
-              marginBottom: '1rem',
-              textAlign: 'center',
-              fontWeight: '500',
-            }}
-          >
-            🚫 This dealership is not accepting applications right now.
-            <br />
-            <span style={{ fontSize: '0.9rem' }}>
-              Their subscription is inactive or expired.
-            </span>
-          </div>
-        )}
+      {isBlocked && (
+        <div className="modal-warning">
+          🚫 This dealership is not accepting applications right now.
+        </div>
+      )}
 
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
-        >
-          <label>Email:</label>
-          <input
-            type="email"
-            value={email}
-            disabled={isBlocked}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{
-              border: '1px solid #ccc',
-              borderRadius: '6px',
-              padding: '0.4rem',
-              backgroundColor: isBlocked ? '#f5f5f5' : 'white',
-            }}
-          />
+      <input
+        className="glass-input"
+        type="email"
+        placeholder="Your Email"
+        value={email}
+        disabled={isBlocked}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
 
-          <label>Bitcoin Wallet:</label>
-          <input
-            type="text"
-            value={btcAddress}
-            readOnly
-            disabled={isBlocked}
-            style={{
-              border: '1px solid #ccc',
-              borderRadius: '6px',
-              padding: '0.4rem',
-              backgroundColor: isBlocked ? '#f5f5f5' : 'white',
-            }}
-          />
-          <button
-            type="button"
-            disabled={isBlocked}
-            onClick={handleUniSatConnect}
-            style={{
-              backgroundColor: isBlocked ? '#9ca3af' : '#374151',
-              color: 'white',
-              padding: '0.4rem',
-              borderRadius: '6px',
-              cursor: isBlocked ? 'not-allowed' : 'pointer',
-              border: 'none',
-            }}
-          >
-            Connect UniSat
-          </button>
+      <input
+        className="glass-input"
+        type="text"
+        placeholder="Wallet Address"
+        value={btcAddress}
+        readOnly
+        disabled={isBlocked}
+      />
 
-          <label>BTC Holdings:</label>
-          <input
-            type="text"
-            value={btcHoldings}
-            readOnly
-            disabled={isBlocked}
-            style={{
-              border: '1px solid #ccc',
-              borderRadius: '6px',
-              padding: '0.4rem',
-              backgroundColor: isBlocked ? '#f5f5f5' : 'white',
-            }}
-          />
+      <button
+        type="button"
+        onClick={handleUniSatConnect}
+        disabled={isBlocked}
+        className="glass-btn"
+      >
+        Connect UniSat
+      </button>
 
-          <label>Message (optional):</label>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            disabled={isBlocked}
-            rows="3"
-            style={{
-              border: '1px solid #ccc',
-              borderRadius: '6px',
-              padding: '0.4rem',
-              resize: 'none',
-              backgroundColor: isBlocked ? '#f5f5f5' : 'white',
-            }}
-          />
+      <input
+        className="glass-input"
+        type="text"
+        placeholder="BTC Holdings"
+        value={btcHoldings}
+        readOnly
+        disabled={isBlocked}
+      />
 
-          <button
-            type="submit"
-            disabled={loading || isBlocked}
-            style={{
-              backgroundColor: isBlocked ? '#9ca3af' : '#f59e0b',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              padding: '0.6rem',
-              fontWeight: '500',
-              cursor: isBlocked ? 'not-allowed' : 'pointer',
-              marginTop: '0.5rem',
-            }}
-          >
-            {loading ? 'Submitting...' : 'Submit Application'}
-          </button>
+      <textarea
+        className="glass-input"
+        placeholder="Message (optional)"
+        value={message}
+        disabled={isBlocked}
+        onChange={(e) => setMessage(e.target.value)}
+      />
 
-          {status && (
-            <p style={{ textAlign: 'center', marginTop: '0.5rem' }}>{status}</p>
-          )}
-        </form>
-      </div>
-    </div>
-  );
+      <button
+        type="submit"
+        disabled={loading || isBlocked}
+        className="glass-btn apply-btn"
+      >
+        {loading ? 'Submitting...' : 'Submit Application'}
+      </button>
+
+      {status && <p className="modal-status">{status}</p>}
+
+    </form>
+  </div>
+);
 }
 
 export default ApplyModal;

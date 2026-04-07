@@ -1,66 +1,44 @@
 // src/pages/Subscribe.jsx
 import React, { useEffect, useState } from 'react';
-import DashboardHeader from '../components/DashboardHeader';
+import { useLocation } from 'react-router-dom';
+
+import Header from '../components/Header';
+import '../styles/Subscribe.css';
 
 export default function Subscribe() {
-  const [tab, setTab] = useState("real-estate"); // NEW — two tabs
+
+  const location = useLocation();
+
+  const [tab, setTab] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('tab') === 'dealership' ? 'dealership' : 'real-estate';
+  });
 
   const [plans, setPlans] = useState([]);
-  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [stripeMode, setStripeMode] = useState('');
   const [error, setError] = useState('');
 
-  // Real estate status
-  const [reStatus, setReStatus] = useState(null);
+  const email = (localStorage.getItem('email') || '').toLowerCase().trim();
 
-  // Dealership status
-  const [dealerStatus, setDealerStatus] = useState(null);
-
-  const email = (localStorage.getItem('email') || '').toLowerCase();
-
-  // ---------------------------------------------------------
-  // LOAD REAL ESTATE PLANS + STATUS
-  // ---------------------------------------------------------
+  // LOAD PLANS
   useEffect(() => {
-    // Load real estate plans
     (async () => {
       try {
         const r = await fetch('/api/stripe/plans');
         if (!r.ok) throw new Error('plans not ok');
         const j = await r.json();
-        setPlans(j);
+
+        setPlans(Array.isArray(j.plans) ? j.plans : []);
+        setStripeMode(j.mode || '');
       } catch (e) {
         setError('Failed to load plans.');
-      } finally {
-        setLoadingPlans(false);
+        setPlans([]);
+        setStripeMode('');
       }
     })();
+  }, []);
 
-    // Load real estate status
-    if (email) {
-      fetch(`/api/stripe/status?email=${encodeURIComponent(email)}`)
-        .then(r => r.ok ? r.json() : { status: 'inactive' })
-        .then(setReStatus)
-        .catch(() => setReStatus({ status: 'inactive' }));
-    }
-  }, [email]);
-
-  // ---------------------------------------------------------
-  // LOAD DEALERSHIP STATUS
-  // ---------------------------------------------------------
-  useEffect(() => {
-    if (!email) return;
-
-    fetch(`/api/stripe/dealer-status?email=${encodeURIComponent(email)}`)
-      .then(r => r.ok ? r.json() : { status: 'inactive' })
-      .then(setDealerStatus)
-      .catch(() => setDealerStatus({ status: 'inactive' }));
-  }, [email]);
-
-  // ---------------------------------------------------------
-  // START REAL ESTATE CHECKOUT SESSION
-  // ---------------------------------------------------------
   const handleRealEstateCheckout = async (planType) => {
-    setError('');
     try {
       const r = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
@@ -68,18 +46,13 @@ export default function Subscribe() {
         body: JSON.stringify({ email, planType }),
       });
       const j = await r.json();
-      if (!r.ok || !j.url) throw new Error(j.error || 'Failed to create session');
       window.location.href = j.url;
-    } catch (e) {
-      setError(e.message || 'Failed to start checkout.');
+    } catch {
+      setError('Checkout failed.');
     }
   };
 
-  // ---------------------------------------------------------
-  // START DEALERSHIP CHECKOUT SESSION
-  // ---------------------------------------------------------
   const handleDealerCheckout = async (planType) => {
-    setError('');
     try {
       const r = await fetch('/api/stripe/create-dealer-subscription', {
         method: 'POST',
@@ -88,205 +61,105 @@ export default function Subscribe() {
       });
 
       const j = await r.json();
-      if (!r.ok || !j.url) throw new Error(j.error || 'Failed to create subscription');
       window.location.href = j.url;
-    } catch (e) {
-      setError(e.message || 'Failed to start dealership checkout.');
+    } catch {
+      setError('Checkout failed.');
     }
   };
 
-  // ---------------------------------------------------------
-  // UI
-  // ---------------------------------------------------------
   return (
-    <div>
-      <DashboardHeader username={localStorage.getItem('username') || ''} />
+    <div className="dashboard-page">
 
-      <div style={{ maxWidth: 960, margin: '0 auto', padding: '2rem' }}>
+      {/* BACKGROUND */}
+      <div className="btc-particles">
+        {[...Array(5)].map((_, i) => (
+          <span key={i} className="btc-particle">₿</span>
+        ))}
+      </div>
 
-        <h2 style={{ fontSize: '2rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '1rem' }}>
-          Subscription Center
+      <div className="dashboard-glow dashboard-glow-1" />
+      <div className="dashboard-glow dashboard-glow-2" />
+      <div className="dashboard-grid-overlay" />
+
+      {/* HEADER */}
+      <Header />
+
+      <div className="dashboard-container">
+
+        <h2 className="subscribe-title">
+          Subscription Center {stripeMode && `(${stripeMode})`}
         </h2>
 
-        {/* ---------------------------- */}
-        {/* TABS                        */}
-        {/* ---------------------------- */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '1rem',
-          marginBottom: '2rem'
-        }}>
+        {/* TABS */}
+        <div className="subscribe-tabs">
           <button
-            onClick={() => setTab("real-estate")}
-            style={{
-              padding: '0.5rem 1rem',
-              borderBottom: tab === "real-estate" ? '3px solid #3b82f6' : '3px solid transparent',
-              fontWeight: tab === "real-estate" ? 700 : 500,
-              cursor: 'pointer'
-            }}
+            className={`subscribe-tab ${tab === 'real-estate' ? 'active' : ''}`}
+            onClick={() => setTab('real-estate')}
           >
             Real Estate Agents
           </button>
 
           <button
-            onClick={() => setTab("dealership")}
-            style={{
-              padding: '0.5rem 1rem',
-              borderBottom: tab === "dealership" ? '3px solid #3b82f6' : '3px solid transparent',
-              fontWeight: tab === "dealership" ? 700 : 500,
-              cursor: 'pointer'
-            }}
+            className={`subscribe-tab ${tab === 'dealership' ? 'active' : ''}`}
+            onClick={() => setTab('dealership')}
           >
             Car Dealerships
           </button>
         </div>
 
-        {error && (
-          <p style={{ textAlign: 'center', color: '#b91c1c', marginBottom: 16 }}>{error}</p>
-        )}
+        {error && <p className="subscribe-error">{error}</p>}
 
-        {/* ---------------------------- */}
-        {/* REAL ESTATE TAB             */}
-        {/* ---------------------------- */}
-        {tab === "real-estate" && (
-          <div>
-            {reStatus?.status === 'active' && (
-              <p style={{ textAlign: 'center', color: '#16a34a', fontWeight: 'bold' }}>
-                ✅ Current plan: {reStatus.type}{" "}
-                {reStatus.validUntil
-                  ? `(until ${new Date(reStatus.validUntil).toLocaleDateString()})`
-                  : "(lifetime)"}
-              </p>
-            )}
+        {/* REAL ESTATE */}
+        {tab === 'real-estate' && (
+          <div className="subscribe-grid">
+            {plans.map((p) => (
+              <div key={p.type} className="subscribe-card glass-card">
+                <h3>{p.label}</h3>
 
-            {loadingPlans && <p style={{ textAlign: 'center' }}>Loading plans…</p>}
-
-            <div style={{
-              display: 'grid',
-              gap: 16,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              marginTop: '1rem'
-            }}>
-              {plans.map((p) => (
-                <div key={p.type} style={{
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 12,
-                  padding: 16
-                }}>
-                  <h3>{p.label}</h3>
-                  <p>${(p.amountCents / 100).toFixed(2)}</p>
-                  <p style={{ color: '#6b7280' }}>
-                    {p.durationDays ? `${p.durationDays}-day access` : 'Lifetime access'}
-                  </p>
-                  <p style={{ color: '#6b7280' }}>
-                    Listings: {p.listingCount}
-                  </p>
-
-                  <button
-                    onClick={() => handleRealEstateCheckout(p.type)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 12px',
-                      borderRadius: 8,
-                      background: '#3b82f6',
-                      color: 'white',
-                      border: 0,
-                      cursor: 'pointer',
-                      marginTop: '1rem'
-                    }}
-                  >
-                    Continue
-                  </button>
+                <div className="price">
+                  ${(Number(p.amountCents || 0) / 100).toFixed(2)}
                 </div>
-              ))}
-            </div>
+
+                <p>{p.validDays}-day access</p>
+                <p>Listings: {p.listingCount}</p>
+
+                <button
+                  className="glass-btn"
+                  onClick={() => handleRealEstateCheckout(p.type)}
+                >
+                  Continue
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
-        {/* ---------------------------- */}
-        {/* DEALERSHIP TAB              */}
-        {/* ---------------------------- */}
-        {tab === "dealership" && (
-          <div>
+        {/* DEALERSHIP */}
+        {tab === 'dealership' && (
+          <div className="subscribe-grid">
+            <div className="subscribe-card glass-card">
+              <h3>Dealership Monthly</h3>
+              <div className="price">$XX/mo</div>
 
-            {/* Dealer status */}
-            {dealerStatus && (
-              <p style={{
-                textAlign: 'center',
-                marginBottom: '1rem',
-                fontWeight: 600,
-                color:
-                  dealerStatus.status === 'active' ? '#16a34a'
-                    : dealerStatus.status === 'past_due' ? '#d97706'
-                    : '#b91c1c'
-              }}>
-                {dealerStatus.status === 'active' && "✅ Active dealership subscription"}
-                {dealerStatus.status === 'past_due' && "⚠️ Payment past due"}
-                {dealerStatus.status === 'expired' && "⛔ Subscription expired"}
-                {dealerStatus.status === 'inactive' && "No active dealership subscription"}
-              </p>
-            )}
-
-            {/* Two pricing cards */}
-            <div style={{
-              display: 'grid',
-              gap: 16,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))'
-            }}>
-              <div style={{
-                border: '1px solid #e5e7eb',
-                borderRadius: 12,
-                padding: 16
-              }}>
-                <h3>Dealership Monthly</h3>
-                <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>$XX/mo</p>
-                <p style={{ color: '#6b7280' }}>Ideal for small lots or testing BlockLease.</p>
-
-                <button
-                  onClick={() => handleDealerCheckout('dealership_monthly')}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    background: '#3b82f6',
-                    color: 'white',
-                    border: 0,
-                    cursor: 'pointer',
-                    marginTop: '1rem'
-                  }}
-                >
-                  Subscribe Monthly
-                </button>
-              </div>
-
-              <div style={{
-                border: '1px solid #e5e7eb',
-                borderRadius: 12,
-                padding: 16
-              }}>
-                <h3>Dealership Annual</h3>
-                <p style={{ fontSize: '1.5rem', fontWeight: 700 }}>$YY/yr</p>
-                <p style={{ color: '#6b7280' }}>Best for established dealerships.</p>
-
-                <button
-                  onClick={() => handleDealerCheckout('dealership_annual')}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    borderRadius: 8,
-                    background: '#3b82f6',
-                    color: 'white',
-                    border: 0,
-                    cursor: 'pointer',
-                    marginTop: '1rem'
-                  }}
-                >
-                  Subscribe Annual
-                </button>
-              </div>
+              <button
+                className="glass-btn"
+                onClick={() => handleDealerCheckout('monthly')}
+              >
+                Subscribe Monthly
+              </button>
             </div>
 
+            <div className="subscribe-card glass-card highlight">
+              <h3>Dealership Annual</h3>
+              <div className="price">$YY/yr</div>
+
+              <button
+                className="glass-btn"
+                onClick={() => handleDealerCheckout('annual')}
+              >
+                Subscribe Annual
+              </button>
+            </div>
           </div>
         )}
 

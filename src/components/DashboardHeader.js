@@ -1,4 +1,3 @@
-// src/components/DashboardHeader.js
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
@@ -14,7 +13,6 @@ function DashboardHeader({ username }) {
       try {
         const decoded = jwtDecode(token);
         const now = Math.floor(Date.now() / 1000);
-        console.log('⏱️ Now:', now, '| Token Exp:', decoded.exp);
 
         if (decoded.exp && decoded.exp > now) {
           navigate('/dashboard');
@@ -31,29 +29,15 @@ function DashboardHeader({ username }) {
   };
 
   return (
-    <header
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '16px',
-        backgroundColor: '#fff',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        overflow: 'hidden',
-      }}
-    >
-      <img
-        src={process.env.PUBLIC_URL + '/BlockRentLogo2.png'}
-        alt="BlockRent Logo"
-        onClick={handleLogoClick}
-        style={{
-          height: '40px',
-          width: 'auto',
-          transform: 'scale(3.5)',
-          transformOrigin: 'left center',
-          display: 'block',
-          cursor: 'pointer',
-        }}
-      />
+    <header className="blockrent-header blockrent-header--login">
+      <div className="blockrent-header-logo-link">
+        <img
+          src={process.env.PUBLIC_URL + '/BlockRentLogo2.png'}
+          alt="BlockRent Logo"
+          onClick={handleLogoClick}
+          className="blockrent-header-logo"
+        />
+      </div>
     </header>
   );
 }

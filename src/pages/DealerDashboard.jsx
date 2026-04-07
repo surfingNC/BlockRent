@@ -1,4 +1,3 @@
-// src/pages/DealerDashboard.jsx
 import React, { useEffect, useState, useCallback } from 'react';
 import Header from '../components/DashboardHeader';
 import '../styles/index.css';
@@ -10,11 +9,11 @@ function DealerDashboard() {
   const [images, setImages] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  const [currentImage, setCurrentImage] = useState(0);
 
   const token = localStorage.getItem('token');
   let email = '';
 
-  // 🟩 Decode authenticated email from JWT
   if (token) {
     try {
       const decoded = jwtDecode(token);
@@ -26,9 +25,7 @@ function DealerDashboard() {
 
   const API = 'http://localhost:5000';
 
-  /* ------------------------------------------------------
-   * Fetch the user's dealership
-   * ------------------------------------------------------ */
+  /* ---------------- FETCH ---------------- */
   const fetchDealer = useCallback(async () => {
     try {
       const res = await fetch(`${API}/api/dealers/mine`, {
@@ -44,9 +41,6 @@ function DealerDashboard() {
     }
   }, [token]);
 
-  /* ------------------------------------------------------
-   * Fetch Stripe dealership subscription
-   * ------------------------------------------------------ */
   const fetchSubscription = useCallback(async () => {
     if (!email) return;
 
@@ -56,59 +50,55 @@ function DealerDashboard() {
       );
       const data = await res.json();
 
-      if (res.ok) {
-        setSubStatus(data);
-      }
+      if (res.ok) setSubStatus(data);
     } catch (err) {
       console.error('Failed to fetch subscription:', err);
     }
   }, [email]);
 
-  /* ------------------------------------------------------
-   * On mount
-   * ------------------------------------------------------ */
   useEffect(() => {
     fetchDealer();
     fetchSubscription();
   }, [fetchDealer, fetchSubscription]);
 
-  /* ------------------------------------------------------
-   * Protect entire page if subscription inactive
-   * ------------------------------------------------------ */
-  if (subStatus && subStatus.status !== 'active') {
-    return (
-      <div className="dealer-dashboard p-10 text-center">
-        <Header />
-        <h2 className="text-2xl font-semibold mt-10 text-red-700">
-          ❌ Dealership Subscription Required
-        </h2>
-        <p className="mt-4 text-gray-700">
-          You must have an active dealership subscription to access your dealer
-          dashboard.
-        </p>
+  const subscriptionActive = subStatus?.status === 'active';
 
-        <button
-          onClick={() => (window.location.href = '/subscribe?for=dealership')}
-          className="mt-6 bg-yellow-500 text-white px-5 py-2 rounded hover:bg-yellow-600"
-        >
-          Subscribe Now
-        </button>
+  /* ---------------- BLOCK ACCESS ---------------- */
+  if (subStatus && !subscriptionActive) {
+    return (
+      <div className="dashboard-page">
+        <Header />
+        <div className="dashboard-main">
+          <div className="glass-card text-center p-8 max-w-xl mx-auto">
+            <h2 className="text-2xl font-semibold text-red-400">
+              Dealership Subscription Required
+            </h2>
+            <p className="mt-3 opacity-80">
+              Activate your subscription to access your dealer dashboard.
+            </p>
+            <button
+              onClick={() =>
+                (window.location.href = '/subscribe?for=dealership')
+              }
+              className="glass-btn mt-5"
+            >
+              Subscribe Now
+            </button>
+          </div>
+        </div>
       </div>
     );
   }
 
-  /* ------------------------------------------------------
-   * Handle image input
-   * ------------------------------------------------------ */
+  /* ---------------- IMAGE HANDLING ---------------- */
   const handleImageChange = (e) => {
     setImages(Array.from(e.target.files));
+    setCurrentImage(0);
   };
 
-  /* ------------------------------------------------------
-   * Upload to S3
-   * ------------------------------------------------------ */
   const uploadImagesToS3 = async () => {
     const uploaded = [];
+
     for (const file of images) {
       try {
         const fileName = encodeURIComponent(file.name);
@@ -135,12 +125,11 @@ function DealerDashboard() {
         console.error('Upload failed:', err);
       }
     }
+
     return uploaded;
   };
 
-  /* ------------------------------------------------------
-   * Update dealer data
-   * ------------------------------------------------------ */
+  /* ---------------- UPDATE ---------------- */
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!dealer?._id) return;
@@ -184,13 +173,10 @@ function DealerDashboard() {
     }
   };
 
-  /* ------------------------------------------------------
-   * Toggle "Accepting Applications"
-   * ------------------------------------------------------ */
   const toggleAccepting = () => {
     if (!dealer) return;
 
-    if (subStatus?.status !== 'active') {
+    if (!subscriptionActive) {
       alert('Subscription inactive — cannot accept applications.');
       return;
     }
@@ -203,100 +189,140 @@ function DealerDashboard() {
 
   if (!dealer) {
     return (
-      <div className="dealer-dashboard">
+      <div className="dashboard-page">
         <Header />
-        <p className="text-center mt-10">Loading your dealership...</p>
+        <div className="dashboard-main text-center mt-20">
+          <p>Loading your dealership...</p>
+        </div>
       </div>
     );
   }
 
+  /* ---------------- IMAGE SOURCE ---------------- */
+  const allImages = [
+    ...(dealer.images || []),
+    ...images.map((file) => URL.createObjectURL(file)),
+  ];
+
+  const nextImage = () => {
+    setCurrentImage((prev) =>
+      prev === allImages.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const prevImage = () => {
+    setCurrentImage((prev) =>
+      prev === 0 ? allImages.length - 1 : prev - 1
+    );
+  };
+
   return (
-    <div className="dealer-dashboard">
+    <div className="dashboard-page">
       <Header />
 
-      <div className="max-w-3xl mx-auto mt-10 p-6 bg-white rounded-xl shadow-md">
-        <h1 className="text-2xl font-semibold mb-1 text-center">
-          {dealer.dealershipName}
-        </h1>
+      <div className="btc-particles"></div>
+      <div className="dashboard-grid-overlay"></div>
 
-        <p className="text-center text-gray-600 mb-4">{dealer.address}</p>
+      <div className="dashboard-main">
+        <div className="glass-card max-w-3xl mx-auto p-8">
 
-        {/* Subscription Status Badge */}
-        <div className="text-center mb-4">
-          <span
-            style={{
-              background: 'green',
-              color: 'white',
-              padding: '4px 10px',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              fontSize: '0.9rem',
-            }}
-          >
-            ACTIVE
-          </span>
+          <h1 className="text-3xl font-semibold text-center mb-2">
+            {dealer.dealershipName}
+          </h1>
 
-          {subStatus?.currentPeriodEnd && (
-            <p className="text-sm mt-2 text-gray-700">
-              Renewal Date:{' '}
-              <b>{new Date(subStatus.currentPeriodEnd).toLocaleDateString()}</b>
-            </p>
-          )}
-        </div>
+          <p className="text-center opacity-70 mb-6">
+            {dealer.address}
+          </p>
 
-        {/* Update Form */}
-        <form onSubmit={handleUpdate} className="flex flex-col gap-4">
-          <label className="font-medium">Update Dealership Images</label>
-          <input
-            type="file"
-            multiple
-            accept="image/*"
-            onChange={handleImageChange}
-            className="border rounded px-3 py-2"
-          />
+          {/* STATUS */}
+          <div className="text-center mb-6">
+            <span className="status-badge active">ACTIVE</span>
 
-          <div className="flex flex-wrap gap-2 mt-2">
-            {dealer.images?.map((url, i) => (
-              <img
-                key={i}
-                src={url}
-                className="w-24 h-24 object-cover rounded border"
-                alt="Dealer"
-              />
-            ))}
-
-            {images.length > 0 &&
-              images.map((file, i) => (
-                <img
-                  key={i}
-                  src={URL.createObjectURL(file)}
-                  className="w-24 h-24 object-cover rounded border"
-                  alt="Preview"
-                />
-              ))}
+            {subStatus?.currentPeriodEnd && (
+              <p className="text-sm mt-2 opacity-70">
+                Renews on{' '}
+                <b>
+                  {new Date(
+                    subStatus.currentPeriodEnd
+                  ).toLocaleDateString()}
+                </b>
+              </p>
+            )}
           </div>
 
-          <label className="flex items-center gap-2 mt-3">
-            <input
-              type="checkbox"
-              checked={dealer.acceptingApplications}
-              onChange={toggleAccepting}
-            />
-            Accepting Applications
-          </label>
+          {/* FORM */}
+          <form onSubmit={handleUpdate} className="flex flex-col gap-6">
 
-          <button
-            type="submit"
-            disabled={uploading}
-            className="bg-yellow-500 text-white py-2 rounded hover:bg-yellow-600"
-          >
-            {uploading ? 'Saving...' : 'Save Changes'}
-          </button>
+            {/* Upload FIRST */}
+            <div>
+              <label className="form-label">Update Images</label>
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleImageChange}
+                className="form-input file-input"
+              />
+            </div>
 
-          {statusMsg && (
-            <p className="text-center mt-2 font-semibold">{statusMsg}</p>
-          )}
-        </form>
+            {/* Carousel UNDER upload */}
+            {allImages.length > 0 && (
+              <div className="image-carousel">
+
+                <img
+                  src={allImages[currentImage]}
+                  alt="Dealer"
+                  className="carousel-image"
+                />
+
+                {allImages.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      className="carousel-btn left"
+                      onClick={prevImage}
+                    >
+                      ←
+                    </button>
+
+                    <button
+                      type="button"
+                      className="carousel-btn right"
+                      onClick={nextImage}
+                    >
+                      →
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Toggle BELOW images */}
+            <label className="flex items-center gap-3 cursor-pointer mt-2">
+              <input
+                type="checkbox"
+                checked={dealer.acceptingApplications}
+                onChange={toggleAccepting}
+              />
+              <span>Accepting Applications</span>
+            </label>
+
+            {/* Save button LAST (full width) */}
+            <button
+              type="submit"
+              disabled={uploading}
+              className="glass-btn w-full mt-4"
+            >
+              {uploading ? 'Saving...' : 'Save Changes'}
+            </button>
+
+            {statusMsg && (
+              <p className="text-center mt-2 opacity-80">
+                {statusMsg}
+              </p>
+            )}
+          </form>
+        </div>
       </div>
     </div>
   );

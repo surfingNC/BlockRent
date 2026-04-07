@@ -47,16 +47,16 @@
     "zipcodes": "^8.0.0"
   },
   "scripts": {
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d build",
-    "start": "react-scripts start",
-    "dev": "concurrently \"npm run start-server\" \"npm start\" \"npm run stripe-listen-test\"",
-    "start-server": "node backend/server.js",
-    "stripe-listen-test": "stripe listen --forward-to localhost:5000/api/stripe/webhook --events checkout.session.completed,invoice.paid,customer.subscription.updated",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
+  "predeploy": "npm run build",
+  "deploy": "gh-pages -d build",
+  "start": "react-scripts start",
+  "start-server": "node backend/server.js",
+  "stripe-listen-test": "stripe listen --forward-to http://localhost:5000/api/stripe/webhook --events checkout.session.completed,invoice.paid,invoice.payment_failed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted",
+  "dev": "concurrently -k \"npm run start-server\" \"npm start\" \"npm run stripe-listen-test\"",
+  "build": "react-scripts build",
+  "test": "react-scripts test",
+  "eject": "react-scripts eject"
+},
   "eslintConfig": {
     "extends": [
       "react-app",
